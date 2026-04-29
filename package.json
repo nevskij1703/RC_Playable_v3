@@ -1,0 +1,16 @@
+{
+  "name": "0063",
+  "version": "1.0.0",
+  "scripts": {
+    "fix-perms": "chmod +x ./node_modules/.bin/* 2>/dev/null || true",
+    "prestart": "npm run fix-perms",
+    "prebuild": "npm run fix-perms",
+    "postinstall": "npm run fix-perms",
+    "start": "node ./node_modules/PlayableAdsBuilder start v4 WAC",
+    "build": "node ./node_modules/PlayableAdsBuilder build v4 WAC"
+  },
+  "dependencies": {
+    "PlayableAdsEngine": "file:./vendor/PlayableAdsEngine",
+    "PlayableAdsBuilder": "file:./vendor/PlayableAdsBuilder"
+  }
+}

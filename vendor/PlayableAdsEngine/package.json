@@ -1,0 +1,25 @@
+{
+  "name": "PlayableAdsEngine",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@pixi/sound": "5.2.2",
+    "pixi.js": "7.4.2",
+    "@pixi/layers": "2.1.0",
+    "@pixi-spine/all-4.1": "4.0.4",
+    "@pixi/ui": "0.10.5",
+    "tweedle.js": "2.1.0"
+  },
+  "devDependencies": {
+    "eslint": "8.56.0",
+    "prettier": "3.2.5",
+    "prettier-eslint": "16.3.0"
+  }
+}
