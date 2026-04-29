@@ -98,21 +98,19 @@ export default class Dish extends Container {
         onComplete: () => {
           this.clone.hide();
           if (tooltipIcon) {
-            tooltipIcon.baseObject.updateCounter(
-              --tooltipIcon.baseObject.count
-            );
-            if (!tooltipIcon.baseObject.count) {
-              tooltipIcon.baseObject.scenarios.showCheck.reset().start();
-            }
-            window.application.sound.play("complete");
+            // Стаков нет — каждое блюдо одно. Сразу галочка + complete.
+            tooltipIcon.baseObject.scenarios.showCheck.reset().start();
+            try {
+              window.application.sound.play("complete");
+            } catch (e) {}
           } else {
             window.application.eventEmitter.emit(EVENTS.falseDish);
             allIncompleteIcons.forEach((icon) =>
               icon.baseObject.scenarios.showCross.reset().start()
             );
           }
-          // НЕ сбрасываем _targetBuyer здесь — он нужен onDeliveryComplete
-          // в шаге сценария после flyToTooltip. Перезапись делается в checkDish.
+          // _targetBuyer оставляем — следующий шаг сценария (onDeliveryComplete)
+          // его прочитает. Перезапись произойдёт в следующем checkDish.
           this._targetTooltip = null;
           resolve();
         },

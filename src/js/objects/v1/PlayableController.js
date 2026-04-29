@@ -28,22 +28,27 @@ const SLOT_COUNT = 3;
 export const TOTAL_BUYERS = 20;
 const SPAWN_DELAY_MS = 600;
 
-// Слот -> закреплённый персонаж и его tooltip.
 const SLOT_CHARACTERS = ["italian_man", "pretty_woman", "old_grambler"];
 const SLOT_TOOLTIPS = [OBJECTS.tooltip1, OBJECTS.tooltip2, OBJECTS.tooltip3];
 
-// Меню блюд (5 позиций по ТЗ). Каждое блюдо — одна порция (count=1).
-// Заказ клиента — массив 1..3 этих блюд (см. generateRandomOrder).
+// Топинги, требующие smart-cooking gate. tortilla/meat/cola — без ограничений
+// (cola — отдельный путь, tortilla/meat — базовая сборка).
+const TOPPING_KEYS = [
+  PRODUCTS_TYPES.tomato,
+  PRODUCTS_TYPES.cucumbers,
+  PRODUCTS_TYPES.fry,
+];
+
+// Меню: 4 шавермы + кола. Все блюда в единственном экземпляре в заказе
+// (никаких stack'ов). У клиента в order может быть до 3 таких блюд.
 export const DISH_TEMPLATES = [
   {
-    cola: true,
     products: [OBJECTS.cola],
-    count: 1,
+    cola: true,
     tutorialSteps: [{ object: OBJECTS.cola }],
   },
   {
     products: [PRODUCTS_TYPES.meat],
-    count: 1,
     tutorialSteps: [
       { object: OBJECTS.tortilla },
       { object: OBJECTS.grill },
@@ -53,7 +58,6 @@ export const DISH_TEMPLATES = [
   },
   {
     products: [PRODUCTS_TYPES.meat, PRODUCTS_TYPES.cucumbers],
-    count: 1,
     tutorialSteps: [
       { object: OBJECTS.tortilla },
       { object: OBJECTS.grill },
@@ -68,7 +72,6 @@ export const DISH_TEMPLATES = [
       PRODUCTS_TYPES.fry,
       PRODUCTS_TYPES.cucumbers,
     ],
-    count: 1,
     tutorialSteps: [
       { object: OBJECTS.tortilla },
       { object: OBJECTS.grill },
@@ -84,7 +87,6 @@ export const DISH_TEMPLATES = [
       PRODUCTS_TYPES.fry,
       PRODUCTS_TYPES.tomato,
     ],
-    count: 1,
     tutorialSteps: [
       { object: OBJECTS.tortilla },
       { object: OBJECTS.grill },
@@ -96,25 +98,43 @@ export const DISH_TEMPLATES = [
   },
 ];
 
-// Совместимость со старыми импортами.
+// Compatibility (старые импорты).
 export const ORDER_TEMPLATES = DISH_TEMPLATES;
 export const ORDERS_LIST = DISH_TEMPLATES;
 export const BUYERS_LIST = SLOT_CHARACTERS.map((name) => ({ name }));
+
+// Канонический ключ блюда — отсортированный список продуктов через "+".
+export function dishKeyForProducts(products) {
+  return products.slice().sort().join("+");
+}
+
+// Ключ из visible-полей в icon container (используется при выдаче собранного
+// dish для матчинга со slot.products).
+export function dishKeyFromIconView(iconView) {
+  if (!iconView || !iconView.children) return "";
+  const names = iconView.children
+    .filter(
+      (c) =>
+        c.visible &&
+        c.baseObject &&
+        ["meat", "cucumbers", "tomato", "fry", "cola"].includes(
+          c.baseObject.name
+        )
+    )
+    .map((c) => c.baseObject.name);
+  return names.sort().join("+");
+}
 
 export default class PlayableController extends BaseObject {
   setupComponents() {
     this.tutorial = new Tutorial(ObjectLinks.get(OBJECTS.tutorialFinger));
 
     this.emptyDishes = [OBJECTS.dish1, OBJECTS.dish2, OBJECTS.dish3];
-
     this.currentDishes = [];
-
     this.completedDishesCount = 0;
-
     this.buyersContainer = ObjectLinks.get(OBJECTS.buyers);
     this.cola = ObjectLinks.get(OBJECTS.cola);
 
-    // Мульти-клиент state.
     this.activeBuyers = [null, null, null];
     this.totalServed = 0;
     this.totalSpawned = 0;
@@ -162,24 +182,27 @@ export default class PlayableController extends BaseObject {
 
   // ---------- Buyer queue / spawn ----------
 
-  // Случайный заказ из 1..3 блюд. Каждое блюдо — отдельная позиция со
-  // своим count=1; стаков по одной позиции нет.
   generateRandomOrder() {
-    const dishCount = 1 + Math.floor(Math.random() * 3); // 1, 2 или 3
-    const order = [];
+    const dishCount = 1 + Math.floor(Math.random() * 3);
+    const dishes = [];
     for (let i = 0; i < dishCount; i++) {
       const t = DISH_TEMPLATES[Math.floor(Math.random() * DISH_TEMPLATES.length)];
-      order.push(JSON.parse(JSON.stringify(t)));
+      dishes.push({
+        products: t.products.slice(),
+        dishKey: dishKeyForProducts(t.products),
+        cola: !!t.cola,
+        tutorialSteps: t.tutorialSteps.slice(),
+        complete: false,
+        slotRef: null, // PIXI slot view binding
+      });
     }
-    return order;
+    return dishes;
   }
 
   hasMoreBuyers() {
     return this.totalSpawned < TOTAL_BUYERS;
   }
 
-  // Создаёт клиента в слоте: генерит заказ из 1-3 блюд и настраивает
-  // tooltip-слоты через setProducts. Анимацию входа кикает асинхронно.
   spawnBuyerInSlot(slotIndex, isInitial = false) {
     if (!this.hasMoreBuyers()) return;
     if (this.activeBuyers[slotIndex]) return;
@@ -190,28 +213,27 @@ export default class PlayableController extends BaseObject {
     const characterName = SLOT_CHARACTERS[slotIndex];
     const character = this.buyersContainer[characterName];
     const tooltip = ObjectLinks.get(SLOT_TOOLTIPS[slotIndex]);
-    const order = this.generateRandomOrder();
+    const dishes = this.generateRandomOrder();
 
-    // Сначала сбросим все ProductOnTooltip slots (complete=true, hidden).
     tooltip.resetForReuse();
-    tooltip.updateIcons(0); // у нас один orderGroup с id=0
+    tooltip.updateIcons(0);
 
-    // Равномерное распределение по высоте бабла в зависимости от
-    // количества блюд (1, 2 или 3). Бабл ~285 px высотой после scale.
+    // Равномерное распределение слотов в бабле.
     const Y_LAYOUT = {
       1: [140],
       2: [85, 200],
       3: [55, 140, 225],
     };
-    const ys = Y_LAYOUT[order.length] || [140];
+    const ys = Y_LAYOUT[dishes.length] || [140];
 
     const orderGroup = tooltip.container.icons.children.find((c) => c.visible);
     if (orderGroup && orderGroup.children) {
-      order.forEach((dish, i) => {
+      dishes.forEach((dish, i) => {
         const slot = orderGroup.children[i];
         if (slot && slot.baseObject && slot.baseObject.setProducts) {
-          slot.baseObject.setProducts(dish.products, dish.count);
+          slot.baseObject.setProducts(dish.products);
           slot.position.y = ys[i];
+          dish.slotRef = slot.baseObject;
         }
       });
     }
@@ -221,10 +243,9 @@ export default class PlayableController extends BaseObject {
       characterName,
       character,
       tooltip,
-      order: { order }, // совместимая обёртка
-      tutorialOrderItem: order[0],
-      currentTutorialStep:
-        order[0] && order[0].tutorialSteps ? order[0].tutorialSteps[0] : null,
+      dishes,
+      tutorialDishIndex: 0,
+      tutorialStepIndex: 0,
       complete: false,
     };
 
@@ -234,12 +255,9 @@ export default class PlayableController extends BaseObject {
     this.animateCharacterIn(buyer, isInitial);
   }
 
-  // Анимация входа клиента. Сбрасываем позицию персонажа в его home-точку
-  // и проигрываем moveToStart (визуально — въезд из-за правого края).
   animateCharacterIn(buyer, isInitial) {
     const { character, tooltip } = buyer;
 
-    // Сброс к home-позиции (на случай если до этого был moveOut).
     character.position = {
       x: character.config.position.x,
       y: character.config.position.y,
@@ -252,7 +270,6 @@ export default class PlayableController extends BaseObject {
     });
     character.animations.moveToStart.reset().start();
 
-    // Tooltip показываем чуть позже, чтобы не "приплывал" впереди клиента.
     setTimeout(
       () => {
         if (this.activeBuyers[buyer.slotIndex] === buyer) {
@@ -263,7 +280,6 @@ export default class PlayableController extends BaseObject {
       isInitial ? 600 : 500
     );
 
-    // После первого появления — обновим tutorial.
     setTimeout(
       () => {
         if (this.activeBuyers[buyer.slotIndex] === buyer) {
@@ -274,8 +290,6 @@ export default class PlayableController extends BaseObject {
     );
   }
 
-  // Освобождает слот: проигрывает happy/moveOut, прячет tooltip,
-  // и через SPAWN_DELAY_MS призывает следующего клиента (если ещё есть).
   releaseSlot(buyer) {
     const slotIndex = buyer.slotIndex;
     if (this.activeBuyers[slotIndex] !== buyer) return;
@@ -284,26 +298,13 @@ export default class PlayableController extends BaseObject {
     this.totalServed++;
     buyer.complete = true;
 
-    // Happy + moveOut + hide tooltip.
     const character = buyer.character;
     const tooltip = buyer.tooltip;
 
     character.setAnimation(CHARACTER_ANIMATIONS.happy, false);
     character.addAnimation(CHARACTER_ANIMATIONS.idle, true);
 
-    // Звуковые реплики (как в оригинале — оставим минимальный набор).
-    if (window.application && window.application.sound) {
-      const soundName = slotIndex === 0 ? "male_happy" : "female_happy";
-      try {
-        window.application.sound.play(soundName, { volume: 1.1 });
-      } catch (e) {}
-    }
-
     setTimeout(() => {
-      // moveOut + hide
-      if (character.scenarios && character.scenarios.moveOut) {
-        // если scenarios.moveOut существует — прокинуть; иначе вручную.
-      }
       character.animations.moveOut.reset().start();
       setTimeout(() => {
         character.animations.hide.reset().start();
@@ -312,126 +313,152 @@ export default class PlayableController extends BaseObject {
       tooltip.hide();
     }, 800);
 
-    // Через паузу — спавним нового в этом же слоте.
     setTimeout(() => {
       this.spawnBuyerInSlot(slotIndex, false);
-      // Tutorial может потребовать обновления, если на сцене появился новый.
       this.updateTutorial();
     }, 800 + TIMINGS.characterMoveOut + SPAWN_DELAY_MS);
-
-    // Если клиентов больше не будет — финализация (заглушка для будущих фаз).
-    if (
-      !this.hasMoreBuyers() &&
-      this.activeBuyers.every((b) => b === null)
-    ) {
-      // TODO (phase 4): showMisclick / store transition.
-    }
   }
 
-  // ---------- Lookup утилиты для мульти-клиента ----------
+  // ---------- Lookup утилиты ----------
 
   getActiveBuyers() {
     return this.activeBuyers.filter((b) => b !== null);
   }
 
-  getPrimaryBuyer() {
-    // Первый слот, у которого ещё есть незакрытые позиции.
-    return this.activeBuyers.find(
-      (b) => b !== null && b.tooltip.getIncompleteIcons().length > 0
-    );
-  }
-
-  // Находит клиента, у которого в заказе есть подходящее блюдо.
-  // Возвращает { buyer, orderItem } или null.
-  findBuyerForDish(dishProductsSorted) {
+  // Все открытые dish-elements (по всем активным клиентам).
+  getOpenDishes() {
+    const open = [];
     for (const buyer of this.activeBuyers) {
-      if (!buyer || buyer.complete) continue;
-      const item = buyer.order.order.find(
-        (o) =>
-          o.products && o.products.toString() === dishProductsSorted.toString()
-      );
-      if (item) return { buyer, orderItem: item };
-    }
-    return null;
-  }
-
-  // Находит клиента, заказавшего колу.
-  findBuyerForCola() {
-    for (const buyer of this.activeBuyers) {
-      if (!buyer || buyer.complete) continue;
-      const item = buyer.order.order.find((o) => o.cola);
-      if (item) return { buyer, orderItem: item };
-    }
-    return null;
-  }
-
-  // Уменьшаем counter в заказе клиента и удаляем позицию, если кончилась.
-  decrementOrderItem(order, item) {
-    const idx = order.indexOf(item);
-    if (idx !== -1) {
-      if (!--order[idx].count) order.splice(idx, 1);
-    }
-  }
-
-  // Проверяет, завершён ли заказ клиента (по логической модели).
-  isBuyerOrderComplete(buyer) {
-    return !buyer.order.order.length;
-  }
-
-  // Эмиссия монет для конкретного слота.
-  emitCoinsForSlot(slotIndex) {
-    const particleNames = ["coin1", "coin2", "coin3"];
-    const name = particleNames[slotIndex] || "coin1";
-
-    if (window.application && window.application.sound) {
-      try {
-        window.application.sound.play("coins_fly_old");
-      } catch (e) {}
-    }
-
-    let count = 0;
-    const total = 8;
-    const interval = setInterval(() => {
-      const p = ParticleEmitter.getParticle(name);
-      if (p && p.scenarios && p.scenarios.main) {
-        p.scenarios.main.reset && p.scenarios.main.reset();
-        p.scenarios.main.start && p.scenarios.main.start();
+      if (!buyer) continue;
+      for (const dish of buyer.dishes) {
+        if (!dish.complete) open.push({ buyer, dish });
       }
-      if (++count >= total) clearInterval(interval);
-    }, 50);
+    }
+    return open;
   }
 
-  // ---------- Совместимость со старыми вызовами ----------
-
-  // Старая checkDish: возвращала matchDish. Сейчас находим клиента + позицию,
-  // декрементим логически. Возвращаем item (truthy) или undefined.
-  checkDish(dish) {
-    const dishProducts = [];
-    Object.keys(PRODUCTS_TYPES).forEach(
-      (product) => dish[product].visible && dishProducts.push(product)
+  getPrimaryBuyer() {
+    return this.activeBuyers.find(
+      (b) => b !== null && b.dishes.some((d) => !d.complete)
     );
-
-    const match = this.findBuyerForDish(dishProducts);
-    if (!match) return undefined;
-
-    this.decrementOrderItem(match.buyer.order.order, match.orderItem);
-    // Сохраняем матч на dish, чтобы flyToTooltip знал, к какому tooltip лететь.
-    dish._targetTooltip = match.buyer.tooltip;
-    dish._targetBuyer = match.buyer;
-    return match.orderItem;
   }
 
-  checkCola() {
+  // Случайный клиент с открытым dish того же ключа.
+  findBuyerForDishKey(dishKey) {
+    const matches = [];
+    for (const buyer of this.activeBuyers) {
+      if (!buyer || buyer.complete) continue;
+      const dish = buyer.dishes.find(
+        (d) => !d.complete && d.dishKey === dishKey
+      );
+      if (dish) matches.push({ buyer, dish });
+    }
+    if (!matches.length) return null;
+    return matches[Math.floor(Math.random() * matches.length)];
+  }
+
+  findBuyerForCola() {
+    return this.findBuyerForDishKey(dishKeyForProducts([OBJECTS.cola]));
+  }
+
+  // ---------- Smart cooking ----------
+
+  // Сколько раз топинг встречается в открытых dish'ах активных клиентов.
+  demandForTopping(topping) {
+    let count = 0;
+    for (const buyer of this.activeBuyers) {
+      if (!buyer) continue;
+      for (const d of buyer.dishes) {
+        if (!d.complete && d.products.includes(topping)) count++;
+      }
+    }
+    return count;
+  }
+
+  // Сколько dishes на столе уже имеют этот топинг (in-progress).
+  inProgressWithTopping(topping) {
+    return this.currentDishes.filter(
+      (dish) => dish.visible && dish[topping] && dish[topping].visible
+    ).length;
+  }
+
+  canPickTopping(topping) {
+    return (
+      this.inProgressWithTopping(topping) < this.demandForTopping(topping)
+    );
+  }
+
+  // Cola разрешена, если суммарный in-progress (т.е. одновременно «летящих»
+  // — но в нашей схеме cola улетает мгновенно, поэтому достаточно проверки
+  // demand>0). Просто: есть ли клиент с открытой колой.
+  canTapCola() {
     return !!this.findBuyerForCola();
   }
 
-  // Привязывает к cola конкретный целевой tooltip и декрементит лог. заказ.
+  // Можно ли тапнуть на собранный dish (на основе его visible products).
+  canTapDish(dish) {
+    const dishKey = dishKeyFromIconView(dish);
+    if (!dishKey) return false;
+    return !!this.findBuyerForDishKey(dishKey);
+  }
+
+  // Перед добавлением tortilla — проверяем что есть пустой слот в emptyDishes.
+  // Но также: если у клиентов нет ни одного "не-cola" заказа, лепёшку класть
+  // незачем. Однако пользователь сказал базу можно класть свободно — значит
+  // не блокируем (даже в "холостую"). Возврат всегда true.
+  canTapTortilla() {
+    return this.emptyDishes.length > 0;
+  }
+
+  // Mеат тоже свободно, но нужно чтобы он был доступен (есть нарезанный).
+  canTapMeat() {
+    return true;
+  }
+
+  // ---------- Cross-popup в точке тапа ----------
+
+  showCrossAtFood(food) {
+    try {
+      const cross = ObjectLinks.get(OBJECTS.crossPopup);
+      if (!cross || !cross.view) return;
+      const tapPoint = food.getTapTutorialPoint
+        ? food.getTapTutorialPoint()
+        : food;
+      const view = tapPoint && tapPoint.view ? tapPoint.view : food.view;
+      if (!view) return;
+      const globalPos = view.getGlobalPosition();
+      const local = cross.view.parent.toLocal(globalPos);
+      cross.view.position.set(local.x, local.y);
+      if (cross.scenarios && cross.scenarios.popup) {
+        cross.scenarios.popup.reset && cross.scenarios.popup.reset();
+        cross.scenarios.popup.start && cross.scenarios.popup.start();
+      } else {
+        cross.show();
+        setTimeout(() => cross.hide && cross.hide(), 500);
+      }
+    } catch (e) {}
+  }
+
+  // ---------- Привязка dish/cola к клиенту перед полётом ----------
+
+  // Возвращает true и проставляет _targetTooltip/_targetBuyer/_targetDish,
+  // если есть подходящий клиент. Иначе false.
+  prepareDishFlight(dish) {
+    const dishKey = dishKeyFromIconView(dish);
+    const match = this.findBuyerForDishKey(dishKey);
+    if (!match) return false;
+    dish._targetTooltip = match.buyer.tooltip;
+    dish._targetBuyer = match.buyer;
+    dish._targetDish = match.dish;
+    return true;
+  }
+
   prepareColaFlight(cola) {
     const match = this.findBuyerForCola();
     if (!match) return false;
-    this.decrementOrderItem(match.buyer.order.order, match.orderItem);
     cola._targetTooltip = match.buyer.tooltip;
     cola._targetBuyer = match.buyer;
+    cola._targetDish = match.dish;
     return true;
   }
 
@@ -443,19 +470,15 @@ export default class PlayableController extends BaseObject {
       this.stopTutorial();
       return;
     }
-
-    // Перейти к первой невыполненной позиции в заказе клиента.
-    const firstItem = buyer.order.order[0];
-    if (!firstItem) {
+    const firstDish = buyer.dishes.find((d) => !d.complete);
+    if (!firstDish) {
       this.stopTutorial();
       return;
     }
-    buyer.tutorialOrderItem = firstItem;
-    buyer.currentTutorialStep =
-      firstItem.tutorialSteps && firstItem.tutorialSteps[0];
+    buyer.tutorialDish = firstDish;
+    buyer.currentTutorialStep = firstDish.tutorialSteps[0];
 
-    // Backward-compat для других мест.
-    this.tutorialOrder = buyer.tutorialOrderItem;
+    this.tutorialOrder = firstDish;
     this.currentTutorialStep = buyer.currentTutorialStep;
 
     if (!this.currentTutorialStep) {
@@ -494,7 +517,6 @@ export default class PlayableController extends BaseObject {
           this.currentTutorialStep.delay !== undefined
             ? this.currentTutorialStep.delay
             : TUTORIAL_DELAY_FOR_NEW_PRODUCT;
-
       target &&
         this.tutorial.startTutorialTap({
           target,
@@ -524,28 +546,24 @@ export default class PlayableController extends BaseObject {
     ) {
       this.tutorial.stopTutorial();
 
-      // Если позиция исчезла из заказа — обновим к следующей.
-      if (!buyer.tutorialOrderItem || !buyer.order.order.includes(buyer.tutorialOrderItem)) {
+      if (!buyer.tutorialDish || buyer.tutorialDish.complete) {
         this.updateTutorial();
         return;
       }
 
-      const { tutorialSteps } = buyer.tutorialOrderItem;
+      const tutorialSteps = buyer.tutorialDish.tutorialSteps;
       const nextIdx = tutorialSteps.indexOf(step) + 1;
       buyer.currentTutorialStep = tutorialSteps[nextIdx];
       this.currentTutorialStep = buyer.currentTutorialStep;
 
-      if (buyer.currentTutorialStep) {
-        this.resumeTutorial();
-      } else {
-        this.stopTutorial();
-      }
+      if (buyer.currentTutorialStep) this.resumeTutorial();
+      else this.stopTutorial();
     } else {
       this.tutorial.stopTutorial();
     }
   }
 
-  // ---------- Dishes / cola утилиты (как раньше) ----------
+  // ---------- Dishes utilities ----------
 
   lockDishes() {
     ObjectLinks.get(OBJECTS.dish1).updateInteractive("auto");
@@ -557,30 +575,21 @@ export default class PlayableController extends BaseObject {
     this.currentDishes.forEach((dish) => dish.updateInteractive("dynamic"));
   }
 
-  // Любой активный клиент имеет право на этот ингредиент?
-  // Для phase 1 — оставляем как раньше: пока есть хоть один currentDish без
-  // этого продукта, ингредиент кликабелен. Smart Cooking прилетит позже.
+  // Управление кликабельностью топингов через canPickTopping.
   updateProductsInteractive() {
-    let eventMode = this.currentDishes.filter(
-      (dish) => dish.visible && !dish[PRODUCTS_TYPES.tomato].visible
-    ).length
-      ? "dynamic"
-      : "auto";
-    ObjectLinks.get(PRODUCTS_TYPES.tomato).updateInteractive(eventMode);
-
-    eventMode = this.currentDishes.filter(
-      (dish) => dish.visible && !dish[PRODUCTS_TYPES.fry].visible
-    ).length
-      ? "dynamic"
-      : "auto";
-    ObjectLinks.get(PRODUCTS_TYPES.fry).updateInteractive(eventMode);
-
-    eventMode = this.currentDishes.filter(
-      (dish) => dish.visible && !dish[PRODUCTS_TYPES.cucumbers].visible
-    ).length
-      ? "dynamic"
-      : "auto";
-    ObjectLinks.get(PRODUCTS_TYPES.cucumbers).updateInteractive(eventMode);
+    [PRODUCTS_TYPES.tomato, PRODUCTS_TYPES.cucumbers, PRODUCTS_TYPES.fry].forEach(
+      (topping) => {
+        const allowed = this.canPickTopping(topping);
+        // Также не разрешаем класть, если на столе нет ни одного открытого
+        // dish с pita (т.е. tortilla уже положена и dish без этого топинга).
+        const hasReceiverDish = this.currentDishes.some(
+          (d) => d.visible && !d[topping].visible
+        );
+        ObjectLinks.get(topping).updateInteractive(
+          allowed && hasReceiverDish ? "dynamic" : "auto"
+        );
+      }
+    );
   }
 
   updatePansInteractive() {
@@ -605,7 +614,6 @@ export default class PlayableController extends BaseObject {
 
   updateTortillaInteractive() {
     const emptyDishes = this.emptyDishes.length;
-
     ObjectLinks.get(OBJECTS.tortilla).updateInteractive(
       emptyDishes ? "dynamic" : "auto"
     );
@@ -616,7 +624,6 @@ export default class PlayableController extends BaseObject {
     let emptyDishes = this.currentDishes.filter(
       (dish) => !dish[product.config.linkID].visible
     );
-
     emptyDish = emptyDishes[0];
 
     if (emptyDish) {
@@ -626,11 +633,9 @@ export default class PlayableController extends BaseObject {
       if (product.config.linkID == OBJECTS.meat) {
         const meat = ObjectLinks.get(OBJECTS.meat);
         let usedMeat;
-
         if (meat.meat3.visible) usedMeat = meat.meat3;
         else if (meat.meat2.visible) usedMeat = meat.meat2;
         else if (meat.meat1.visible) usedMeat = meat.meat1;
-
         usedMeat && usedMeat.hide();
       }
     }
@@ -638,10 +643,9 @@ export default class PlayableController extends BaseObject {
 
   getEmptyDish() {
     let dish = this.emptyDishes.pop();
-
     this.currentDishes.push(ObjectLinks.get(dish));
-    this.currentDishes.sort((dish1, dish2) => {
-      if (dish1.config.linkID < dish2.config.linkID) return -1;
+    this.currentDishes.sort((d1, d2) => {
+      if (d1.config.linkID < d2.config.linkID) return -1;
       else return 1;
     });
     return dish;
@@ -649,18 +653,14 @@ export default class PlayableController extends BaseObject {
 
   getVisibleCola() {
     let cola = this.cola.children.filter((cola) => cola.visible);
-
     cola = cola.length ? cola[cola.length - 1].baseObject : undefined;
-
     return cola;
   }
 
   removeDishFromCurrent(dish) {
     const dishIndex = this.currentDishes.indexOf(dish);
-
     if (dishIndex !== -1) {
       this.currentDishes.splice(dishIndex, 1);
-
       this.emptyDishes.push(dish.config.linkID);
       this.emptyDishes.sort();
     }
@@ -682,25 +682,102 @@ export default class PlayableController extends BaseObject {
   }
 
   showDrinks() {
-    this.cola.children.sort((obj1, obj2) => {
-      return obj1.baseObject.config.linkID < obj2.baseObject.config.linkID
-        ? 1
-        : -1;
-    });
+    this.cola.children.sort((a, b) =>
+      a.baseObject.config.linkID < b.baseObject.config.linkID ? 1 : -1
+    );
     this.cola.children.forEach((drink) => {
       !drink.baseObject.visible && drink.baseObject.show();
     });
   }
 
-  // Колбэк после прилёта блюда/колы. Если у этого клиента всё закрыто — он уходит.
+  emitCoinsForSlot(slotIndex) {
+    const particleNames = ["coin1", "coin2", "coin3"];
+    const name = particleNames[slotIndex] || "coin1";
+    if (window.application && window.application.sound) {
+      try {
+        window.application.sound.play("coins_fly_old");
+      } catch (e) {}
+    }
+    let count = 0;
+    const total = 8;
+    const interval = setInterval(() => {
+      const p = ParticleEmitter.getParticle(name);
+      if (p && p.scenarios && p.scenarios.main) {
+        p.scenarios.main.reset && p.scenarios.main.reset();
+        p.scenarios.main.start && p.scenarios.main.start();
+      }
+      if (++count >= total) clearInterval(interval);
+    }, 50);
+  }
+
+  // Вызывается после прилёта блюда/колы.
+  // dish._targetDish — ссылка на dish-record клиента.
   onDeliveryComplete(buyer) {
     if (!buyer) return;
-    // Логическая проверка дублируется визуальной (count в tooltip-иконах
-    // декрементится в Dish/Cola.flyToTooltip). Используем логическую.
-    if (this.isBuyerOrderComplete(buyer)) {
+    if (buyer.dishes.every((d) => d.complete)) {
       this.emitCoinsForSlot(buyer.slotIndex);
+      // Последний клиент игры → переход в стор.
+      if (
+        !this.hasMoreBuyers() &&
+        this.getActiveBuyers().length === 1 &&
+        this.getActiveBuyers()[0] === buyer
+      ) {
+        this.activeBuyers[buyer.slotIndex] = null;
+        this.totalServed++;
+        buyer.complete = true;
+        // moveOut
+        const character = buyer.character;
+        character.setAnimation(CHARACTER_ANIMATIONS.happy, false);
+        character.addAnimation(CHARACTER_ANIMATIONS.idle, true);
+        setTimeout(() => {
+          buyer.tooltip.hide();
+          this.triggerStore();
+        }, 600);
+        return;
+      }
       this.releaseSlot(buyer);
     }
+  }
+
+  triggerStore() {
+    const misclickArea = ObjectLinks.get(OBJECTS.misclickArea);
+    const nextLevelMisclick = ObjectLinks.get(OBJECTS.nextLevelMisclick);
+    if (window.is_adwords || window.is_unity) {
+      if (
+        nextLevelMisclick &&
+        nextLevelMisclick.scenarios &&
+        nextLevelMisclick.scenarios.play
+      ) {
+        nextLevelMisclick.scenarios.play.reset &&
+          nextLevelMisclick.scenarios.play.reset();
+        nextLevelMisclick.scenarios.play.start &&
+          nextLevelMisclick.scenarios.play.start();
+      }
+    } else if (misclickArea && misclickArea.show) {
+      misclickArea.show();
+    }
+  }
+
+  // Для совместимости: проверка валидности dish, проставка targets и
+  // помечание dish-record клиента complete=true (визуально showCheck сделает
+  // сам в Dish.flyToTooltip onComplete).
+  checkDish(dish) {
+    if (!this.prepareDishFlight(dish)) return undefined;
+    // Помечаем dish клиента complete=true заранее, чтобы повторные
+    // конкурентные тапы не ложились на тот же slot.
+    if (dish._targetDish) dish._targetDish.complete = true;
+    return dish._targetDish;
+  }
+
+  checkCola() {
+    return !!this.findBuyerForCola();
+  }
+
+  // Для cola flow (addCola сценарий).
+  prepareColaAndMark(cola) {
+    if (!this.prepareColaFlight(cola)) return false;
+    if (cola._targetDish) cola._targetDish.complete = true;
+    return true;
   }
 
   // ---------- Конфиг сценариев ----------
@@ -711,8 +788,6 @@ export default class PlayableController extends BaseObject {
         main: [
           Rewards.call("setupComponents"),
 
-          // Звук по умолчанию выключен (удобно для разработки/превью —
-          // пользователь сможет включить через ButtonMute).
           () => {
             try {
               const s = window.application && window.application.sound;
@@ -722,7 +797,6 @@ export default class PlayableController extends BaseObject {
           },
 
           () => {
-            // Стартовый каскад: 3 клиента появляются с лёгкой задержкой.
             this.spawnBuyerInSlot(0, true);
             setTimeout(() => this.spawnBuyerInSlot(1, true), 250);
             setTimeout(() => this.spawnBuyerInSlot(2, true), 500);
@@ -732,23 +806,52 @@ export default class PlayableController extends BaseObject {
           () => this.updateTutorial(),
         ],
 
+        // Главный gate: проверяем тип food и smart-cooking.
         addFood: [
           Rewards.playSound("tap"),
           Rewards.if(
             (food) => food instanceof Cola,
-            Rewards.startScenarioInstant("addCola"),
+            // Cola
             Rewards.if(
-              (food) => food instanceof Tortilla,
-              Rewards.startScenarioInstant("addTortilla"),
+              () => this.canTapCola(),
+              Rewards.startScenarioInstant("addCola"),
               Rewards.startScenario([
                 Rewards.withArgs(
                   (food) => food,
-                  Rewards.call("addProductToDish")
+                  Rewards.call("showCrossAtFood")
                 ),
-                Rewards.call("updateProductsInteractive"),
-                Rewards.call("updateMeatInteractive"),
-                Rewards.call("nextTutorialStep"),
               ])
+            ),
+            Rewards.if(
+              (food) => food instanceof Tortilla,
+              // Tortilla — без проверок (пользователь разрешил)
+              Rewards.startScenarioInstant("addTortilla"),
+              // Прочие ингредиенты: meat, tomato, cucumbers, fry.
+              Rewards.if(
+                (food) => {
+                  const linkID = food.config.linkID;
+                  if (linkID === OBJECTS.meat) return true;
+                  if (TOPPING_KEYS.includes(linkID)) {
+                    return this.canPickTopping(linkID);
+                  }
+                  return true;
+                },
+                Rewards.startScenario([
+                  Rewards.withArgs(
+                    (food) => food,
+                    Rewards.call("addProductToDish")
+                  ),
+                  Rewards.call("updateProductsInteractive"),
+                  Rewards.call("updateMeatInteractive"),
+                  Rewards.call("nextTutorialStep"),
+                ]),
+                Rewards.startScenario([
+                  Rewards.withArgs(
+                    (food) => food,
+                    Rewards.call("showCrossAtFood")
+                  ),
+                ])
+              )
             )
           ),
         ],
@@ -756,7 +859,7 @@ export default class PlayableController extends BaseObject {
         addCola: [
           Rewards.call("pauseTutorial"),
           Rewards.if(
-            (cola) => this.prepareColaFlight(cola),
+            (cola) => this.prepareColaAndMark(cola),
             Rewards.startScenario([
               Rewards.onTarget(
                 (cola) => cola,
@@ -768,14 +871,11 @@ export default class PlayableController extends BaseObject {
               ),
               () => this.updateTutorial(),
             ]),
-            // Нет клиента, заказавшего колу — улетит в "ничей" tooltip и
-            // покажет крестики (логика falseCola).
             Rewards.startScenario([
-              Rewards.onTarget(
+              Rewards.withArgs(
                 (cola) => cola,
-                Rewards.callNonInstant("flyToTooltip")
+                Rewards.call("showCrossAtFood")
               ),
-              () => this.updateTutorial(),
             ])
           ),
         ],
@@ -834,23 +934,19 @@ export default class PlayableController extends BaseObject {
                 (dish) => dish && dish._targetBuyer,
                 Rewards.call("onDeliveryComplete")
               ),
+              Rewards.call("updateTortillaInteractive"),
+              Rewards.call("updateProductsInteractive"),
               () => this.updateTutorial(),
             ]),
             Rewards.startScenario([
-              Rewards.withArgs((dish) => dish, Rewards.call("setDishEmpty")),
+              // Нет клиента под этот dish: показываем cross в точке dish,
+              // dish остаётся (игрок может попробовать другое).
               Rewards.withArgs(
                 (dish) => dish,
-                Rewards.call("removeDishFromCurrent")
-              ),
-              Rewards.onTarget(
-                (dish) => dish,
-                Rewards.callNonInstant("flyToTooltip")
+                Rewards.call("showCrossAtFood")
               ),
             ])
           ),
-          Rewards.call("updateTortillaInteractive"),
-          Rewards.call("updateProductsInteractive"),
-          Rewards.call("nextTutorialStep"),
         ],
 
         sliceMeat: [
@@ -894,17 +990,14 @@ export default class PlayableController extends BaseObject {
           t: Triggers.onceEvent(APPLICATION_EVENTS.playableStart),
           r: Rewards.startScenario("main"),
         },
-
         {
           t: Triggers.onEvent(FOOD_EVENTS.foodTap),
           r: Rewards.startScenario("addFood"),
         },
-
         {
           t: Triggers.onEvent(FOOD_EVENTS.dishTap),
           r: Rewards.startScenario("putDish"),
         },
-
         {
           t: Triggers.onEvent(EVENTS.addMeat),
           r: Rewards.startScenario([
@@ -918,54 +1011,6 @@ export default class PlayableController extends BaseObject {
             Rewards.call("nextTutorialStep"),
           ]),
         },
-
-        {
-          t: Triggers.onEvent(EVENTS.falseDish),
-          r: Rewards.startScenario([
-            () => {
-              // Сердить любого активного клиента — будут все.
-              this.getActiveBuyers().forEach((b) => {
-                if (
-                  b.character.spine.view.state.getCurrent(0).animation.name !=
-                  CHARACTER_ANIMATIONS.happy
-                ) {
-                  b.character.setAnimation(CHARACTER_ANIMATIONS.angry, false);
-                  b.character.addAnimation(CHARACTER_ANIMATIONS.idle, true);
-                }
-              });
-              if (window.application && window.application.sound) {
-                try {
-                  window.application.sound.play("male_angry");
-                } catch (e) {}
-              }
-            },
-            () => this.updateTutorial(),
-          ]),
-        },
-
-        {
-          t: Triggers.onEvent(EVENTS.falseCola),
-          r: Rewards.startScenario([
-            () => {
-              this.getActiveBuyers().forEach((b) => {
-                if (
-                  b.character.spine.view.state.getCurrent(0).animation.name !=
-                  CHARACTER_ANIMATIONS.happy
-                ) {
-                  b.character.setAnimation(CHARACTER_ANIMATIONS.angry, false);
-                  b.character.addAnimation(CHARACTER_ANIMATIONS.idle, true);
-                }
-              });
-              if (window.application && window.application.sound) {
-                try {
-                  window.application.sound.play("female_angry");
-                } catch (e) {}
-              }
-            },
-            () => this.updateTutorial(),
-          ]),
-        },
-
         {
           t: Triggers.onceEvent(APPLICATION_EVENTS.playableFirstInteraction),
           c: () => window.is_mraid,

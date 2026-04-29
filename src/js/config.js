@@ -1,4 +1,5 @@
 import {
+  Animations,
   ButtonInstall,
   ButtonMute,
   Container,
@@ -8,6 +9,7 @@ import {
   MainContainer,
   MisclickArea,
   Rewards,
+  Sprite,
   Triggers,
   TutorialFinger,
 } from "PlayableAdsEngine";
@@ -41,6 +43,42 @@ export default {
           linkID: OBJECTS.tutorialFinger,
           class: TutorialFinger,
           scale: { x: 0.5, y: 0.5 },
+        },
+
+        // Всплывающий красный крест в точке тапа при невалидном действии
+        // (smart cooking gate). Bounce-show + автоскрытие через 500 мс.
+        {
+          linkID: OBJECTS.crossPopup,
+          class: Sprite,
+          image: "ui/cross",
+          anchor: { x: 0.5, y: 0.5 },
+          scale: { x: 0.6, y: 0.6 },
+          visible: false,
+          alpha: 0,
+          animations: {
+            show: {
+              from: { alpha: 0, scale: { x: 0, y: 0 } },
+              to: { alpha: 1, scale: { x: 0.7, y: 0.7 } },
+              duration: 200,
+              easing: Easing.Back.Out,
+            },
+            hide: {
+              from: { alpha: 1 },
+              to: { alpha: 0 },
+              duration: 200,
+              easing: Easing.Quadratic.In,
+            },
+          },
+          scenarios: {
+            popup: [
+              Rewards.show(),
+              Rewards.startAnimationInstant("show"),
+              Rewards.wait(500),
+              Rewards.startAnimationInstant("hide"),
+              Rewards.wait(200),
+              Rewards.hide(),
+            ],
+          },
         },
 
         !(window.is_unity || window.is_adwords) && {

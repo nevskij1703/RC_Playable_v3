@@ -79,6 +79,8 @@ export const OBJECTS = {
   tooltip2: "tooltip2",
   tooltip3: "tooltip3",
 
+  crossPopup: "crossPopup",
+
   tutorialFinger: "tutorialFinger",
   ui: "ui"
 };

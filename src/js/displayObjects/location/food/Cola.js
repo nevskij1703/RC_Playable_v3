@@ -61,13 +61,10 @@ export default class Cola extends Food {
         onComplete: () => {
           this.hide();
           if (tooltipIcon) {
-            tooltipIcon.baseObject.updateCounter(
-              --tooltipIcon.baseObject.count
-            );
-            if (!tooltipIcon.baseObject.count) {
-              tooltipIcon.baseObject.scenarios.showCheck.reset().start();
-            }
-            window.application.sound.play("complete");
+            tooltipIcon.baseObject.scenarios.showCheck.reset().start();
+            try {
+              window.application.sound.play("complete");
+            } catch (e) {}
           } else {
             window.application.eventEmitter.emit(EVENTS.falseCola);
             allIncompleteIcons.forEach((icon) =>
@@ -78,7 +75,7 @@ export default class Cola extends Food {
           this.changeParent(OBJECTS.cola);
           this.position = this.config.position;
           this.scale = this.config.scale || { x: 1, y: 1 };
-          // _targetBuyer не сбрасываем — нужен onDeliveryComplete после полёта.
+          // _targetBuyer остаётся для onDeliveryComplete; чистим только tooltip.
           this._targetTooltip = null;
 
           resolve();
