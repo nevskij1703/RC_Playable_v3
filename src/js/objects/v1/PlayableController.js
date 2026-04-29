@@ -32,94 +32,73 @@ const SPAWN_DELAY_MS = 600;
 const SLOT_CHARACTERS = ["italian_man", "pretty_woman", "old_grambler"];
 const SLOT_TOOLTIPS = [OBJECTS.tooltip1, OBJECTS.tooltip2, OBJECTS.tooltip3];
 
-// Шаблоны заказов. Каждый клиент случайно получает один из них.
-export const ORDER_TEMPLATES = [
+// Меню блюд (5 позиций по ТЗ). Каждое блюдо — одна порция (count=1).
+// Заказ клиента — массив 1..3 этих блюд (см. generateRandomOrder).
+export const DISH_TEMPLATES = [
   {
-    id: 1,
-    order: [
-      {
-        products: [PRODUCTS_TYPES.meat],
-        count: 2,
-        tutorialSteps: [
-          { object: OBJECTS.tortilla },
-          { object: OBJECTS.grill },
-          { object: OBJECTS.meat },
-          { object: "dish" },
-        ],
-      },
-      {
-        cola: true,
-        count: 1,
-        tutorialSteps: [{ object: OBJECTS.cola }],
-      },
+    cola: true,
+    products: [OBJECTS.cola],
+    count: 1,
+    tutorialSteps: [{ object: OBJECTS.cola }],
+  },
+  {
+    products: [PRODUCTS_TYPES.meat],
+    count: 1,
+    tutorialSteps: [
+      { object: OBJECTS.tortilla },
+      { object: OBJECTS.grill },
+      { object: OBJECTS.meat },
+      { object: "dish" },
     ],
   },
   {
-    id: 2,
-    order: [
-      {
-        products: [PRODUCTS_TYPES.meat, PRODUCTS_TYPES.cucumbers],
-        count: 3,
-        tutorialSteps: [
-          { object: OBJECTS.tortilla },
-          { object: OBJECTS.grill },
-          { object: OBJECTS.meat },
-          { object: OBJECTS.cucumbers },
-          { object: "dish" },
-        ],
-      },
-      {
-        cola: true,
-        count: 3,
-        tutorialSteps: [
-          { object: OBJECTS.cola },
-          { object: OBJECTS.cola },
-          { object: OBJECTS.cola },
-        ],
-      },
+    products: [PRODUCTS_TYPES.meat, PRODUCTS_TYPES.cucumbers],
+    count: 1,
+    tutorialSteps: [
+      { object: OBJECTS.tortilla },
+      { object: OBJECTS.grill },
+      { object: OBJECTS.meat },
+      { object: OBJECTS.cucumbers },
+      { object: "dish" },
     ],
   },
   {
-    id: 3,
-    order: [
-      {
-        products: [
-          PRODUCTS_TYPES.meat,
-          PRODUCTS_TYPES.fry,
-          PRODUCTS_TYPES.cucumbers,
-        ],
-        count: 9,
-        tutorialSteps: [
-          { object: OBJECTS.tortilla },
-          { object: OBJECTS.grill },
-          { object: OBJECTS.meat },
-          { object: OBJECTS.fry },
-          { object: OBJECTS.cucumbers },
-          { object: "dish" },
-        ],
-      },
-      {
-        products: [
-          PRODUCTS_TYPES.meat,
-          PRODUCTS_TYPES.tomato,
-          PRODUCTS_TYPES.fry,
-        ],
-        count: 12,
-        tutorialSteps: [
-          { object: OBJECTS.tortilla },
-          { object: OBJECTS.grill },
-          { object: OBJECTS.meat },
-          { object: OBJECTS.fry },
-          { object: OBJECTS.tomato },
-          { object: "dish" },
-        ],
-      },
+    products: [
+      PRODUCTS_TYPES.meat,
+      PRODUCTS_TYPES.fry,
+      PRODUCTS_TYPES.cucumbers,
+    ],
+    count: 1,
+    tutorialSteps: [
+      { object: OBJECTS.tortilla },
+      { object: OBJECTS.grill },
+      { object: OBJECTS.meat },
+      { object: OBJECTS.fry },
+      { object: OBJECTS.cucumbers },
+      { object: "dish" },
+    ],
+  },
+  {
+    products: [
+      PRODUCTS_TYPES.meat,
+      PRODUCTS_TYPES.fry,
+      PRODUCTS_TYPES.tomato,
+    ],
+    count: 1,
+    tutorialSteps: [
+      { object: OBJECTS.tortilla },
+      { object: OBJECTS.grill },
+      { object: OBJECTS.meat },
+      { object: OBJECTS.fry },
+      { object: OBJECTS.tomato },
+      { object: "dish" },
     ],
   },
 ];
 
-// Совместимость со старым кодом, который импортирует ORDERS_LIST.
-export const ORDERS_LIST = ORDER_TEMPLATES;
+// Совместимость со старыми импортами.
+export const ORDER_TEMPLATES = DISH_TEMPLATES;
+export const ORDERS_LIST = DISH_TEMPLATES;
 export const BUYERS_LIST = SLOT_CHARACTERS.map((name) => ({ name }));
 
 export default class PlayableController extends BaseObject {
@@ -183,21 +162,24 @@ export default class PlayableController extends BaseObject {
 
   // ---------- Buyer queue / spawn ----------
 
-  pickRandomTemplate() {
-    return ORDER_TEMPLATES[Math.floor(Math.random() * ORDER_TEMPLATES.length)];
-  }
-
-  cloneOrder(template) {
-    return JSON.parse(JSON.stringify(template));
+  // Случайный заказ из 1..3 блюд. Каждое блюдо — отдельная позиция со
+  // своим count=1; стаков по одной позиции нет.
+  generateRandomOrder() {
+    const dishCount = 1 + Math.floor(Math.random() * 3); // 1, 2 или 3
+    const order = [];
+    for (let i = 0; i < dishCount; i++) {
+      const t = DISH_TEMPLATES[Math.floor(Math.random() * DISH_TEMPLATES.length)];
+      order.push(JSON.parse(JSON.stringify(t)));
+    }
+    return order;
   }
 
   hasMoreBuyers() {
     return this.totalSpawned < TOTAL_BUYERS;
   }
 
-  // Создаёт клиента в слоте: задаёт ему случайный заказ и активирует tooltip.
-  // Анимацию входа возвращает в виде Promise (хотя для main сценария мы не ждём
-  // её завершения — клиенты появляются с лёгким каскадом).
+  // Создаёт клиента в слоте: генерит заказ из 1-3 блюд и настраивает
+  // tooltip-слоты через setProducts. Анимацию входа кикает асинхронно.
   spawnBuyerInSlot(slotIndex, isInitial = false) {
     if (!this.hasMoreBuyers()) return;
     if (this.activeBuyers[slotIndex]) return;
@@ -208,24 +190,41 @@ export default class PlayableController extends BaseObject {
     const characterName = SLOT_CHARACTERS[slotIndex];
     const character = this.buyersContainer[characterName];
     const tooltip = ObjectLinks.get(SLOT_TOOLTIPS[slotIndex]);
-    const template = this.pickRandomTemplate();
-    const orderClone = this.cloneOrder(template);
+    const order = this.generateRandomOrder();
 
+    // Сначала сбросим все ProductOnTooltip slots (complete=true, hidden).
     tooltip.resetForReuse();
-    tooltip.updateIcons(template.id);
+    tooltip.updateIcons(0); // у нас один orderGroup с id=0
+
+    // Равномерное распределение по высоте бабла в зависимости от
+    // количества блюд (1, 2 или 3). Бабл ~285 px высотой после scale.
+    const Y_LAYOUT = {
+      1: [140],
+      2: [85, 200],
+      3: [55, 140, 225],
+    };
+    const ys = Y_LAYOUT[order.length] || [140];
+
+    const orderGroup = tooltip.container.icons.children.find((c) => c.visible);
+    if (orderGroup && orderGroup.children) {
+      order.forEach((dish, i) => {
+        const slot = orderGroup.children[i];
+        if (slot && slot.baseObject && slot.baseObject.setProducts) {
+          slot.baseObject.setProducts(dish.products, dish.count);
+          slot.position.y = ys[i];
+        }
+      });
+    }
 
     const buyer = {
       slotIndex,
       characterName,
       character,
       tooltip,
-      orderId: template.id,
-      order: orderClone,
-      tutorialOrderItem: orderClone.order[0],
+      order: { order }, // совместимая обёртка
+      tutorialOrderItem: order[0],
       currentTutorialStep:
-        orderClone.order[0] && orderClone.order[0].tutorialSteps
-          ? orderClone.order[0].tutorialSteps[0]
-          : null,
+        order[0] && order[0].tutorialSteps ? order[0].tutorialSteps[0] : null,
       complete: false,
     };
 
@@ -711,6 +710,16 @@ export default class PlayableController extends BaseObject {
       scenarios: {
         main: [
           Rewards.call("setupComponents"),
+
+          // Звук по умолчанию выключен (удобно для разработки/превью —
+          // пользователь сможет включить через ButtonMute).
+          () => {
+            try {
+              const s = window.application && window.application.sound;
+              if (s && !s.context.muted && s.toggleMuteAll) s.toggleMuteAll();
+              if (window.application) window.application.soundMuted = true;
+            } catch (e) {}
+          },
 
           () => {
             // Стартовый каскад: 3 клиента появляются с лёгкой задержкой.

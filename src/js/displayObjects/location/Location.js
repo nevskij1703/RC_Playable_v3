@@ -393,92 +393,54 @@ export default class Location extends Container {
               linkID,
               name: linkID,
               class: Tooltip,
-              // Tooltip над головой клиента. Слоты buyers: -360, -130, 110.
-              // Bubble уменьшена по X (scale 0.55) — items стопкой по Y.
-              // visual-центр bubble = tooltip.position + (234*tooltipScale*bubbleScaleX, 72*tooltipScale*bubbleScaleY).
-              // Эмпирически подбираем tooltip.x так, чтобы centroid был над головой.
+              // Tooltip левее головы клиента, чтобы не перекрывать лицо.
+              // Bubble высокий (~285*0.85=242 px), поэтому tooltip y ставим
+              // выше головы; bubble спускается до уровня плеч/груди.
               position_portrait: {
-                x: [-280, -50, 165][idx],
-                y: [-370, -370, -370][idx],
+                x: [-310, -85, 130][idx],
+                y: [-440, -440, -440][idx],
               },
               position: {
-                x: [-280, -50, 165][idx],
-                y: [-360, -360, -360][idx],
+                x: [-310, -85, 130][idx],
+                y: [-430, -430, -430][idx],
               },
               scale: { x: 0.85, y: 0.85 },
               visible: false,
+              // Один orderGroup с 3 универсальными слотами. Контроллер при
+              // спавне клиента вызывает setProducts() на нужном количестве
+              // slots (1-3); остальные остаются скрытыми (reset → complete=true).
+              // Bubble после scale 0.4x2.4 = ~96x285. Слоты вертикально
+              // на y=50/140/230 (равномерно), x=50 (центр bubble).
               icons: {
                 position: { x: 0, y: 0 },
                 children: [
                   {
-                    orderId: 1,
-                    visible: false,
+                    orderId: 0,
+                    visible: true,
                     children: [
                       {
                         class: ProductOnTooltip,
                         products: [OBJECTS.cola],
-                        scale: { x: 0.7, y: 0.7 },
-                        position: { x: 96, y: 30 },
+                        scale: { x: 0.5, y: 0.5 },
+                        position: { x: 50, y: 50 },
                         counterPos: { x: 70, y: 74 },
                         count: 1,
                       },
                       {
                         class: ProductOnTooltip,
-                        products: [PRODUCTS_TYPES.meat],
-                        scale: { x: 0.7, y: 0.7 },
-                        position: { x: 96, y: 96 },
-                        count: 2,
+                        products: [OBJECTS.cola],
+                        scale: { x: 0.5, y: 0.5 },
+                        position: { x: 50, y: 140 },
+                        counterPos: { x: 70, y: 74 },
+                        count: 1,
                       },
-                    ],
-                  },
-                  {
-                    orderId: 2,
-                    visible: false,
-                    children: [
                       {
                         class: ProductOnTooltip,
                         products: [OBJECTS.cola],
-                        scale: { x: 0.7, y: 0.7 },
-                        position: { x: 96, y: 30 },
+                        scale: { x: 0.5, y: 0.5 },
+                        position: { x: 50, y: 230 },
                         counterPos: { x: 70, y: 74 },
-                        count: 3,
-                      },
-                      {
-                        class: ProductOnTooltip,
-                        products: [PRODUCTS_TYPES.meat, PRODUCTS_TYPES.cucumbers],
-                        scale: { x: 0.7, y: 0.7 },
-                        position: { x: 96, y: 96 },
-                        count: 3,
-                      },
-                    ],
-                  },
-                  {
-                    orderId: 3,
-                    visible: false,
-                    children: [
-                      {
-                        class: ProductOnTooltip,
-                        products: [
-                          PRODUCTS_TYPES.meat,
-                          PRODUCTS_TYPES.fry,
-                          PRODUCTS_TYPES.cucumbers,
-                        ],
-                        scale: { x: 0.65, y: 0.65 },
-                        position: { x: 96, y: 30 },
-                        counterPos: { x: 88, y: 80 },
-                        count: 9,
-                      },
-                      {
-                        class: ProductOnTooltip,
-                        products: [
-                          PRODUCTS_TYPES.meat,
-                          PRODUCTS_TYPES.fry,
-                          PRODUCTS_TYPES.tomato,
-                        ],
-                        scale: { x: 0.65, y: 0.65 },
-                        position: { x: 96, y: 96 },
-                        counterPos: { x: 84, y: 80 },
-                        count: 12,
+                        count: 1,
                       },
                     ],
                   },

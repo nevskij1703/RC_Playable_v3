@@ -32,10 +32,12 @@ export default class ProductOnTooltip extends Container {
     }
   }
 
-  // Сброс к исходному состоянию (для переиспользования tooltip новым клиентом)
+  // Сброс slot'а в "пустое" состояние перед назначением нового заказа.
+  // Делает slot невидимым и помечает completed=true, чтобы он не попал в
+  // findIncomplete пока не активируется через setProducts.
   reset() {
-    this.complete = false;
-    this.count = this.config.count || 1;
+    this.complete = true;
+    this.count = 0;
 
     if (this.checkMark) this.checkMark.visible = false;
     if (this.cross) {
@@ -43,12 +45,16 @@ export default class ProductOnTooltip extends Container {
       this.cross.alpha = 1;
       this.cross.scale = { x: 1, y: 1 };
     }
-    if (this.icon) this.icon.visible = true;
-    if (this.counter) {
-      this.counter.visible = true;
-      this.counter.alpha = 1;
-      this.counter.setValue(`x${this.count}`);
+    if (this.icon) {
+      this.icon.visible = false;
+      this.resetChildrenVisibility();
     }
+    if (this.counter) {
+      this.counter.visible = false;
+      this.counter.alpha = 1;
+    }
+    // Сам slot скрываем; setProducts покажет.
+    this.visible = false;
   }
 
   updateIcon(products) {
@@ -67,6 +73,35 @@ export default class ProductOnTooltip extends Container {
 
   resetChildrenVisibility() {
     this.icon.children.forEach((child) => (child.visible = false));
+  }
+
+  // Полная переустановка отображаемого блюда. Используется при назначении
+  // нового заказа клиенту (контроллер вызывает на каждом активном slot).
+  setProducts(products, count = 1) {
+    this.config.products = products;
+    this.config.count = count;
+    this.count = count;
+    this.complete = false;
+    this.visible = true;
+    this.resetChildrenVisibility();
+    this.updateIcon(products);
+    if (this.checkMark) this.checkMark.visible = false;
+    if (this.cross) {
+      this.cross.visible = false;
+      this.cross.alpha = 1;
+      this.cross.scale = { x: 1, y: 1 };
+    }
+    if (this.icon) this.icon.visible = true;
+    if (this.counter) {
+      // Стаков нет (count == 1) — счётчик скрываем; на случай >1 показываем.
+      this.counter.alpha = 1;
+      if (count > 1) {
+        this.counter.visible = true;
+        this.counter.setValue(`x${count}`);
+      } else {
+        this.counter.visible = false;
+      }
+    }
   }
 
   changeParent(linkID) {
