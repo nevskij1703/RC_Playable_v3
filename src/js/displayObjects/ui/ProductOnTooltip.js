@@ -108,6 +108,11 @@ export default class ProductOnTooltip extends Container {
             this.visible && this.hide();
           }),
           Rewards.onChild("checkMark", Rewards.show()),
+          // Галочка светится мгновение и исчезает, оставляя пустое место —
+          // как просил пользователь. Сам item остаётся complete=true, поэтому
+          // повторно ничего не вернётся.
+          Rewards.wait(600),
+          Rewards.onChild("checkMark", Rewards.hide()),
         ],
         hideCheck: [
           Rewards.set({ complete: false }),

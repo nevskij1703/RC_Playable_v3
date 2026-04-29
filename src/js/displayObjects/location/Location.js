@@ -141,8 +141,8 @@ export default class Location extends Container {
                     scale: {x: -.55, y: .55}
                   },
                   pivot: {x: -8, y: 0},
-                  // Slot 2 (rightmost).
-                  position: { x: 110, y: 114 },
+                  // Slot 2 (rightmost). x≤90 чтобы спайн целиком влез в портретный канвас (375 wide).
+                  position: { x: 80, y: 114 },
                 },
                 {
                   name: "pretty_woman",
@@ -153,7 +153,7 @@ export default class Location extends Container {
                   },
                   pivot: {x: -4, y: 0},
                   // Slot 1 (middle).
-                  position: { x: -40, y: 120 },
+                  position: { x: -130, y: 120 },
                 },
                 {
                   name: "italian_man",
@@ -162,8 +162,8 @@ export default class Location extends Container {
                     fileName: "italian_man",
                     scale: {x: -.55, y: .55}
                   },
-                  // Slot 0 (leftmost).
-                  position: { x: -200, y: 205 },
+                  // Slot 0 (leftmost) — за областью гриля (как на референсе).
+                  position: { x: -360, y: 205 },
                 },
               ],
             },
@@ -393,24 +393,22 @@ export default class Location extends Container {
               linkID,
               name: linkID,
               class: Tooltip,
-              // Каждый tooltip ставится над головой клиента в своём слоте.
-              // Слоты в координатах buyers-контейнера: -200, -40, 110.
-              // Buyers-контейнер в Location координатах: (178, -146).
-              // visual-центр tooltip = tooltip.position + (234*scale, 72*scale).
-              // Чтобы клиенты не перекрывались, ставим tooltips чуть мельче и
-              // штатно над головами; средний — чуть выше, крайние — чуть ниже,
-              // чтобы при близком расположении не накладывались друг на друга.
+              // Tooltip над головой клиента. Слоты buyers: -360, -130, 110.
+              // Bubble уменьшена по X (scale 0.55) — items стопкой по Y.
+              // visual-центр bubble = tooltip.position + (234*tooltipScale*bubbleScaleX, 72*tooltipScale*bubbleScaleY).
+              // Эмпирически подбираем tooltip.x так, чтобы centroid был над головой.
               position_portrait: {
-                x: [-260, -110, 40][idx],
-                y: [-360, -390, -360][idx],
+                x: [-280, -50, 165][idx],
+                y: [-370, -370, -370][idx],
               },
               position: {
-                x: [-260, -110, 40][idx],
-                y: [-350, -380, -350][idx],
+                x: [-280, -50, 165][idx],
+                y: [-360, -360, -360][idx],
               },
               scale: { x: 0.85, y: 0.85 },
               visible: false,
               icons: {
+                position: { x: 0, y: 0 },
                 children: [
                   {
                     orderId: 1,
@@ -420,15 +418,15 @@ export default class Location extends Container {
                         class: ProductOnTooltip,
                         products: [OBJECTS.cola],
                         scale: { x: 0.7, y: 0.7 },
-                        position: { x: 64, y: 22 + 36 * 0.8 },
+                        position: { x: 96, y: 30 },
                         counterPos: { x: 70, y: 74 },
                         count: 1,
                       },
                       {
                         class: ProductOnTooltip,
                         products: [PRODUCTS_TYPES.meat],
-                        scale: { x: 0.64, y: 0.64 },
-                        position: { x: 154, y: 23 + 39 * 0.72 },
+                        scale: { x: 0.7, y: 0.7 },
+                        position: { x: 96, y: 96 },
                         count: 2,
                       },
                     ],
@@ -441,15 +439,15 @@ export default class Location extends Container {
                         class: ProductOnTooltip,
                         products: [OBJECTS.cola],
                         scale: { x: 0.7, y: 0.7 },
-                        position: { x: 64, y: 22 + 36 * 0.8 },
+                        position: { x: 96, y: 30 },
                         counterPos: { x: 70, y: 74 },
                         count: 3,
                       },
                       {
                         class: ProductOnTooltip,
                         products: [PRODUCTS_TYPES.meat, PRODUCTS_TYPES.cucumbers],
-                        scale: { x: 0.64, y: 0.64 },
-                        position: { x: 154, y: 23 + 39 * 0.72 },
+                        scale: { x: 0.7, y: 0.7 },
+                        position: { x: 96, y: 96 },
                         count: 3,
                       },
                     ],
@@ -465,8 +463,8 @@ export default class Location extends Container {
                           PRODUCTS_TYPES.fry,
                           PRODUCTS_TYPES.cucumbers,
                         ],
-                        scale: { x: 0.6, y: 0.6 },
-                        position: { x: 64, y: 23 + 38 * 0.72 },
+                        scale: { x: 0.65, y: 0.65 },
+                        position: { x: 96, y: 30 },
                         counterPos: { x: 88, y: 80 },
                         count: 9,
                       },
@@ -477,8 +475,8 @@ export default class Location extends Container {
                           PRODUCTS_TYPES.fry,
                           PRODUCTS_TYPES.tomato,
                         ],
-                        scale: { x: 0.6, y: 0.6 },
-                        position: { x: 156, y: 23 + 38 * 0.72 },
+                        scale: { x: 0.65, y: 0.65 },
+                        position: { x: 96, y: 96 },
                         counterPos: { x: 84, y: 80 },
                         count: 12,
                       },

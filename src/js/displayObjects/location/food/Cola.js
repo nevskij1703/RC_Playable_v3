@@ -41,8 +41,6 @@ export default class Cola extends Food {
       this.changeParent(OBJECTS.cola);
       this.position = this.config.position;
       this.scale = this.config.scale || { x: 1, y: 1 };
-      this._targetTooltip = null;
-      this._targetBuyer = null;
       return Promise.resolve();
     }
 
@@ -80,8 +78,8 @@ export default class Cola extends Food {
           this.changeParent(OBJECTS.cola);
           this.position = this.config.position;
           this.scale = this.config.scale || { x: 1, y: 1 };
+          // _targetBuyer не сбрасываем — нужен onDeliveryComplete после полёта.
           this._targetTooltip = null;
-          this._targetBuyer = null;
 
           resolve();
         },

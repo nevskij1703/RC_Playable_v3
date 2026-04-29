@@ -74,8 +74,8 @@ export default class Dish extends Container {
     const destIcon = tooltipIcon || allIncompleteIcons[0];
     if (!destIcon) {
       this.clone.hide();
-      this._targetTooltip = null;
-      this._targetBuyer = null;
+      // Не сбрасываем _targetBuyer/_targetTooltip — onDeliveryComplete после
+      // flyToTooltip ещё прочитает их. Перезапись произойдёт в следующем checkDish.
       return Promise.resolve();
     }
 
@@ -111,8 +111,9 @@ export default class Dish extends Container {
               icon.baseObject.scenarios.showCross.reset().start()
             );
           }
+          // НЕ сбрасываем _targetBuyer здесь — он нужен onDeliveryComplete
+          // в шаге сценария после flyToTooltip. Перезапись делается в checkDish.
           this._targetTooltip = null;
-          this._targetBuyer = null;
           resolve();
         },
       });
