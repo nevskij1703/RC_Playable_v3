@@ -45,12 +45,41 @@ export default class Dish extends Container {
   flyToTooltip() {
     this.clone.changeParent(OBJECTS.fakeDishContainer);
 
-    let tooltip = ObjectLinks.get(OBJECTS.tooltip);
-    let tooltipIcon = tooltip.getIncompleteIconByProducts(this.clone.icon);
-    let tooltipIncompleteIcons = tooltip.getIncompleteIcons();
-    let newPos = this.clone.parent.baseObject.getLocalPositionFor(
-      tooltipIcon ? tooltipIcon : tooltipIncompleteIcons[0]
+    const allTooltips = [
+      ObjectLinks.get(OBJECTS.tooltip1),
+      ObjectLinks.get(OBJECTS.tooltip2),
+      ObjectLinks.get(OBJECTS.tooltip3),
+    ].filter((t) => t && t.visible);
+
+    let tooltipIcon = null;
+    if (this._targetTooltip) {
+      tooltipIcon = this._targetTooltip.getIncompleteIconByProducts(
+        this.clone.icon
+      );
+    }
+    if (!tooltipIcon) {
+      for (const t of allTooltips) {
+        const icon = t.getIncompleteIconByProducts(this.clone.icon);
+        if (icon) {
+          tooltipIcon = icon;
+          break;
+        }
+      }
+    }
+
+    const allIncompleteIcons = allTooltips.flatMap((t) =>
+      t.getIncompleteIcons()
     );
+
+    const destIcon = tooltipIcon || allIncompleteIcons[0];
+    if (!destIcon) {
+      this.clone.hide();
+      this._targetTooltip = null;
+      this._targetBuyer = null;
+      return Promise.resolve();
+    }
+
+    const newPos = this.clone.parent.baseObject.getLocalPositionFor(destIcon);
 
     this.clone.show();
 
@@ -68,19 +97,22 @@ export default class Dish extends Container {
         autoStart: true,
         onComplete: () => {
           this.clone.hide();
-          tooltipIcon &&
+          if (tooltipIcon) {
             tooltipIcon.baseObject.updateCounter(
               --tooltipIcon.baseObject.count
             );
-          tooltipIcon &&
-            !tooltipIcon.baseObject.count &&
-            tooltipIcon.baseObject.scenarios.showCheck.reset().start();
-          if (!tooltipIcon) {
+            if (!tooltipIcon.baseObject.count) {
+              tooltipIcon.baseObject.scenarios.showCheck.reset().start();
+            }
+            window.application.sound.play("complete");
+          } else {
             window.application.eventEmitter.emit(EVENTS.falseDish);
-            tooltipIncompleteIcons.forEach((icon) =>
+            allIncompleteIcons.forEach((icon) =>
               icon.baseObject.scenarios.showCross.reset().start()
             );
-          } else window.application.sound.play("complete");
+          }
+          this._targetTooltip = null;
+          this._targetBuyer = null;
           resolve();
         },
       });

@@ -45,6 +45,22 @@ export default class Tooltip extends Container {
     iconsChildren.forEach((icon) => icon.visible = icon.baseObject.config.orderId == orderId);
   }
 
+  // Сброс счётчиков и галочек на всех ProductOnTooltip,
+  // чтобы tooltip можно было переиспользовать для нового клиента.
+  resetForReuse() {
+    const iconsChildren = this.container.icons.children;
+    iconsChildren.forEach((orderGroup) => {
+      orderGroup.visible = false;
+      if (orderGroup.children) {
+        orderGroup.children.forEach((productView) => {
+          if (productView.baseObject && productView.baseObject.reset) {
+            productView.baseObject.reset();
+          }
+        });
+      }
+    });
+  }
+
   getTapTutorialPoint() {
     return this.container.icons.children[0];
   }

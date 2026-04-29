@@ -37,7 +37,10 @@ export default class Location extends Container {
         : { x: 1, y: 1 };
 
     this.background.buyers.applyPosition(positionName);
-    this.background.tooltip.applyPosition(positionName);
+    ["tooltip1", "tooltip2", "tooltip3"].forEach((tName) => {
+      const t = this.background[tName];
+      if (t && t.applyPosition) t.applyPosition(positionName);
+    });
   }
 
   getDefaultConfig(config) {
@@ -126,6 +129,8 @@ export default class Location extends Container {
                     scale: {x: -.55, y: .55}
                   },
                   pivot: {x: 36, y: 0},
+                  // Запасной/неиспользуемый персонаж — оставлен, спайн загружен,
+                  // но в активную ротацию (SLOT_CHARACTERS) не добавлен.
                   position: { x: 378, y: 114 },
                 },
                 {
@@ -136,7 +141,8 @@ export default class Location extends Container {
                     scale: {x: -.55, y: .55}
                   },
                   pivot: {x: -8, y: 0},
-                  position: { x: 256, y: 114 },
+                  // Slot 2 (rightmost).
+                  position: { x: 110, y: 114 },
                 },
                 {
                   name: "pretty_woman",
@@ -146,7 +152,8 @@ export default class Location extends Container {
                     scale: {x: -.55, y: .55}
                   },
                   pivot: {x: -4, y: 0},
-                  position: { x: 38, y: 120 },
+                  // Slot 1 (middle).
+                  position: { x: -40, y: 120 },
                 },
                 {
                   name: "italian_man",
@@ -155,7 +162,8 @@ export default class Location extends Container {
                     fileName: "italian_man",
                     scale: {x: -.55, y: .55}
                   },
-                  position: { x: -128, y: 205 },
+                  // Slot 0 (leftmost).
+                  position: { x: -200, y: 205 },
                 },
               ],
             },
@@ -381,13 +389,27 @@ export default class Location extends Container {
               linkID: OBJECTS.stars,
             },
 
-            {
-              linkID: OBJECTS.tooltip,
-              name: "tooltip",
+            ...[OBJECTS.tooltip1, OBJECTS.tooltip2, OBJECTS.tooltip3].map((linkID, idx) => ({
+              linkID,
+              name: linkID,
               class: Tooltip,
-              position_portrait: { x: -282, y: -364 },
-              position: { x: -288, y: -350 },
-              scale: {x: 1.2, y: 1.2},
+              // Каждый tooltip ставится над головой клиента в своём слоте.
+              // Слоты в координатах buyers-контейнера: -200, -40, 110.
+              // Buyers-контейнер в Location координатах: (178, -146).
+              // visual-центр tooltip = tooltip.position + (234*scale, 72*scale).
+              // Чтобы клиенты не перекрывались, ставим tooltips чуть мельче и
+              // штатно над головами; средний — чуть выше, крайние — чуть ниже,
+              // чтобы при близком расположении не накладывались друг на друга.
+              position_portrait: {
+                x: [-260, -110, 40][idx],
+                y: [-360, -390, -360][idx],
+              },
+              position: {
+                x: [-260, -110, 40][idx],
+                y: [-350, -380, -350][idx],
+              },
+              scale: { x: 0.85, y: 0.85 },
+              visible: false,
               icons: {
                 children: [
                   {
@@ -464,7 +486,7 @@ export default class Location extends Container {
                   },
                 ],
               },
-            },
+            })),
 
             {
               linkID: OBJECTS.fakeDishContainer,

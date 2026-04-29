@@ -75,6 +75,9 @@ export const OBJECTS = {
   travelMap: "travelMap",
 
   tooltip: "tooltip",
+  tooltip1: "tooltip1",
+  tooltip2: "tooltip2",
+  tooltip3: "tooltip3",
 
   tutorialFinger: "tutorialFinger",
   ui: "ui"

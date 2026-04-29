@@ -32,6 +32,25 @@ export default class ProductOnTooltip extends Container {
     }
   }
 
+  // Сброс к исходному состоянию (для переиспользования tooltip новым клиентом)
+  reset() {
+    this.complete = false;
+    this.count = this.config.count || 1;
+
+    if (this.checkMark) this.checkMark.visible = false;
+    if (this.cross) {
+      this.cross.visible = false;
+      this.cross.alpha = 1;
+      this.cross.scale = { x: 1, y: 1 };
+    }
+    if (this.icon) this.icon.visible = true;
+    if (this.counter) {
+      this.counter.visible = true;
+      this.counter.alpha = 1;
+      this.counter.setValue(`x${this.count}`);
+    }
+  }
+
   updateIcon(products) {
     products.forEach((product) => (this.icon[product].visible = true));
 

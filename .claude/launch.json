@@ -1,0 +1,20 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "playable-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "./node_modules/webpack/bin/webpack.js",
+        "serve",
+        "--config",
+        "./node_modules/PlayableAdsBuilder/webpack.config.dev.js",
+        "--env",
+        "titleKey=WAC",
+        "--env",
+        "playableVersion=v4"
+      ],
+      "port": 8080
+    }
+  ]
+}

@@ -11,12 +11,42 @@ export default class Cola extends Food {
   flyToTooltip() {
     this.changeParent(OBJECTS.fakeDishContainer);
 
-    let tooltip = ObjectLinks.get(OBJECTS.tooltip);
-    let tooltipIcon = tooltip.getIncompleteIconByProducts(this.view);
-    let tooltipIncompleteIcons = tooltip.getIncompleteIcons();
-    let newPos = this.parent.baseObject.getLocalPositionFor(
-      tooltipIcon ? tooltipIcon : tooltipIncompleteIcons[0]
+    const allTooltips = [
+      ObjectLinks.get(OBJECTS.tooltip1),
+      ObjectLinks.get(OBJECTS.tooltip2),
+      ObjectLinks.get(OBJECTS.tooltip3),
+    ].filter((t) => t && t.visible);
+
+    let tooltipIcon = null;
+    if (this._targetTooltip) {
+      tooltipIcon = this._targetTooltip.getIncompleteIconByProducts(this.view);
+    }
+    if (!tooltipIcon) {
+      for (const t of allTooltips) {
+        const icon = t.getIncompleteIconByProducts(this.view);
+        if (icon) {
+          tooltipIcon = icon;
+          break;
+        }
+      }
+    }
+
+    const allIncompleteIcons = allTooltips.flatMap((t) =>
+      t.getIncompleteIcons()
     );
+
+    const destIcon = tooltipIcon || allIncompleteIcons[0];
+    if (!destIcon) {
+      this.hide();
+      this.changeParent(OBJECTS.cola);
+      this.position = this.config.position;
+      this.scale = this.config.scale || { x: 1, y: 1 };
+      this._targetTooltip = null;
+      this._targetBuyer = null;
+      return Promise.resolve();
+    }
+
+    const newPos = this.parent.baseObject.getLocalPositionFor(destIcon);
 
     return new Promise((resolve) => {
       new Animation(this, {
@@ -32,23 +62,26 @@ export default class Cola extends Food {
         autoStart: true,
         onComplete: () => {
           this.hide();
-          tooltipIcon &&
+          if (tooltipIcon) {
             tooltipIcon.baseObject.updateCounter(
               --tooltipIcon.baseObject.count
             );
-          tooltipIcon &&
-            !tooltipIcon.baseObject.count &&
-            tooltipIcon.baseObject.scenarios.showCheck.reset().start();
-          if (!tooltipIcon) {
+            if (!tooltipIcon.baseObject.count) {
+              tooltipIcon.baseObject.scenarios.showCheck.reset().start();
+            }
+            window.application.sound.play("complete");
+          } else {
             window.application.eventEmitter.emit(EVENTS.falseCola);
-            tooltipIncompleteIcons.forEach((icon) =>
+            allIncompleteIcons.forEach((icon) =>
               icon.baseObject.scenarios.showCross.reset().start()
             );
-          } else window.application.sound.play("complete");
+          }
 
           this.changeParent(OBJECTS.cola);
           this.position = this.config.position;
-          this.scale = this.config.scale || {x: 1, y: 1};
+          this.scale = this.config.scale || { x: 1, y: 1 };
+          this._targetTooltip = null;
+          this._targetBuyer = null;
 
           resolve();
         },
@@ -62,7 +95,13 @@ export default class Cola extends Food {
       y: [this.position.y],
     };
 
-    const tooltipPosition = ObjectLinks.get(OBJECTS.tooltip).getLocalPositionFor(this)
+    const someTooltip =
+      ObjectLinks.get(OBJECTS.tooltip1) ||
+      ObjectLinks.get(OBJECTS.tooltip2) ||
+      ObjectLinks.get(OBJECTS.tooltip3);
+    const tooltipPosition = someTooltip
+      ? someTooltip.getLocalPositionFor(this)
+      : { x: 0, y: 0 };
 
     points.x.push(tooltipPosition.x - this.position.x * 0.5);
     points.y.push(tooltipPosition.y - this.position.y * 0.5);
