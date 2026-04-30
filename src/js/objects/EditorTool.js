@@ -16,6 +16,15 @@ const DEFAULT_LAYOUT = {
     tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
     hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
   },
+  landscape: {
+    italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: -310, y: -440, scaleX: 0.85, scaleY: 0.85 },
+    tooltip2: { x: -86, y: -438, scaleX: 0.85, scaleY: 0.85 },
+    tooltip3: { x: 130, y: -440, scaleX: 0.85, scaleY: 0.85 },
+    hudPanel: { x: 0, y: -280, scaleX: 1, scaleY: 1 },
+  },
 };
 
 // Список редактируемых объектов: имя + способ найти baseObject.
