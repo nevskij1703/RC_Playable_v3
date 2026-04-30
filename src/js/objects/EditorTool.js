@@ -11,10 +11,10 @@ const DEFAULT_LAYOUT = {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 80, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -349, y: -488, scaleX: 0.937, scaleY: 0.937 },
-    tooltip2: { x: -119, y: -486, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3: { x: 83, y: -488, scaleX: 0.937, scaleY: 0.937 },
-    hudPanel: { x: 0, y: -370, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: 73, y: -506, scaleX: 0.935, scaleY: 0.935 },
+    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
+    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
   },
 };
 
