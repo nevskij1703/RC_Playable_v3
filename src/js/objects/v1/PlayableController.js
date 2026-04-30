@@ -31,14 +31,6 @@ const SPAWN_DELAY_MS = 600;
 const SLOT_CHARACTERS = ["italian_man", "pretty_woman", "old_grambler"];
 const SLOT_TOOLTIPS = [OBJECTS.tooltip1, OBJECTS.tooltip2, OBJECTS.tooltip3];
 
-// Топинги, требующие smart-cooking gate. tortilla/meat/cola — без ограничений
-// (cola — отдельный путь, tortilla/meat — базовая сборка).
-const TOPPING_KEYS = [
-  PRODUCTS_TYPES.tomato,
-  PRODUCTS_TYPES.cucumbers,
-  PRODUCTS_TYPES.fry,
-];
-
 // Меню: 4 шавермы + кола. Все блюда в единственном экземпляре в заказе
 // (никаких stack'ов). У клиента в order может быть до 3 таких блюд.
 export const DISH_TEMPLATES = [
@@ -370,16 +362,27 @@ export default class PlayableController extends BaseObject {
     return this.findBuyerForDishKey(dishKeyForProducts([OBJECTS.cola]));
   }
 
-  // ---------- Smart cooking ----------
+  // ---------- Smart cooking (perfect-matching gate) ----------
+  //
+  // Жёсткий инвариант: множество тарелок-в-работе (`currentDishes`) обязано
+  // допускать ИДЕАЛЬНОЕ распределение по открытым «не-cola» заказам — каждой
+  // тарелке свой distinct заказ, и её visible-ингредиенты ⊆ products заказа.
+  //
+  // Любое действие, увеличивающее supply (addTortilla / положить ингредиент),
+  // допускается ТОЛЬКО если результирующее состояние тоже допускает идеальное
+  // распределение. Над-сборка (3 шавермы при 2 заказах) невозможна по
+  // построению — gate отвергнет лишнюю тортилью или ингредиент.
+  //
+  // Реализация: backtracking bipartite matching. supply ≤ 3, demand ≤ 9 —
+  // мгновенно.
 
-  // Возвращает массив visible-ингредиентов dish (без plate/pita): meat,
-  // tomato, cucumbers, fry, cola.
+  // Visible ингредиенты на тарелке (без plate/pita).
   visibleIngredients(dish) {
     const keys = ["meat", "tomato", "cucumbers", "fry"];
     return keys.filter((k) => dish[k] && dish[k].visible);
   }
 
-  // Все «приёмные» buyer dishes (открытые, не cola): {buyer, dish}.
+  // Открытые «не-cola» заказы по всем активным клиентам.
   openMealBuyerDishes() {
     const out = [];
     for (const buyer of this.activeBuyers) {
@@ -392,41 +395,99 @@ export default class PlayableController extends BaseObject {
     return out;
   }
 
-  // Можно ли добавить product к КАКОЙ-нибудь currentDish так, чтобы
-  // результирующая комбинация была подмножеством продуктов хотя бы одного
-  // открытого buyer dish.
-  // Учёт "занятости" buyer dishes мы НЕ ведём — над-сборка обходится
-  // discard-механизмом (тап на застрявшую тарелку сбрасывает её).
-  // Это правило простое и корректное: предотвращает только заведомо
-  // ненужную сборку.
-  canAddProductToAnyDish(product) {
-    const open = this.openMealBuyerDishes();
-    if (!open.length) return false;
+  // Идеальное соответствие: каждой supply[i] свой distinct demand[j]
+  // такой, что supply[i] ⊆ demand[j]. Backtracking.
+  _canMatch(supply, demand) {
+    if (supply.length > demand.length) return false;
+    const used = new Array(demand.length).fill(false);
+    const fits = (sIdx, dIdx) =>
+      supply[sIdx].every((p) => demand[dIdx].includes(p));
+    const rec = (i) => {
+      if (i >= supply.length) return true;
+      for (let j = 0; j < demand.length; j++) {
+        if (used[j] || !fits(i, j)) continue;
+        used[j] = true;
+        if (rec(i + 1)) return true;
+        used[j] = false;
+      }
+      return false;
+    };
+    return rec(0);
+  }
 
-    const candidates = this.currentDishes.filter(
-      (d) => d.visible && (!d[product] || !d[product].visible)
+  _currentSupply() {
+    return this.currentDishes
+      .filter((d) => d.visible)
+      .map((d) => this.visibleIngredients(d));
+  }
+
+  _currentDemand() {
+    return this.openMealBuyerDishes().map(
+      ({ buyerDish }) => buyerDish.products
     );
-    if (!candidates.length) return false;
+  }
 
-    for (const cd of candidates) {
-      const ings = this.visibleIngredients(cd);
-      const newIngs = ings.includes(product) ? ings : [...ings, product];
-      if (newIngs.includes(OBJECTS.cola)) continue;
-      const fits = open.some(({ buyerDish }) =>
-        newIngs.every((i) => buyerDish.products.includes(i))
-      );
-      if (fits) return true;
+  // Лепёшку (новую пустую тарелку) можно положить, только если matching
+  // ещё допустим после добавления.
+  canTapTortilla() {
+    if (this.emptyDishes.length === 0) return false;
+    const supply = this._currentSupply();
+    supply.push([]); // гипотетическая пустая тарелка
+    return this._canMatch(supply, this._currentDemand());
+  }
+
+  // Возвращает тарелку, на которую можно положить linkID
+  // (meat/tomato/cucumbers/fry) с сохранением matching-инварианта; или null.
+  // Из нескольких валидных предпочитает наиболее «достроенную» (greedy:
+  // сначала закрыть начатую — короче TTR заказа).
+  _pickPlateForIngredient(linkID) {
+    const candidates = this.currentDishes.filter(
+      (d) => d.visible && (!d[linkID] || !d[linkID].visible)
+    );
+    if (!candidates.length) return null;
+
+    const baseSupply = this.currentDishes.map((d) => ({
+      dish: d,
+      ings: this.visibleIngredients(d),
+    }));
+    const demand = this._currentDemand();
+
+    candidates.sort(
+      (a, b) =>
+        this.visibleIngredients(b).length - this.visibleIngredients(a).length
+    );
+    for (const c of candidates) {
+      const supply = baseSupply.map(({ dish, ings }) => {
+        if (dish !== c) return ings;
+        return ings.includes(linkID) ? ings : [...ings, linkID];
+      });
+      if (this._canMatch(supply, demand)) return c;
     }
-    return false;
+    return null;
   }
 
-  canPickTopping(topping) {
-    return this.canAddProductToAnyDish(topping);
+  // Можно ли тапнуть ингредиент (meat / tomato / cucumbers / fry).
+  canAddIngredient(linkID) {
+    return !!this._pickPlateForIngredient(linkID);
   }
 
-  // Тарелка ещё «в работе»: её текущие ингредиенты — подмножество какого-то
-  // открытого заказа, т.е. её можно достроить добавлением топингов.
-  // Если visibleIngredients пуст (только pita), считаем тарелку "in-progress".
+  // Cola — отдельный путь (тарелки не задействованы).
+  canTapCola() {
+    return !!this.findBuyerForCola();
+  }
+
+  // Готовое блюдо: матчим dishKey ровно с открытым заказом.
+  canTapDish(dish) {
+    const dishKey = dishKeyFromIconView(dish);
+    if (!dishKey) return false;
+    return !!this.findBuyerForDishKey(dishKey);
+  }
+
+  // Тарелка ещё «достраиваема»: её ингредиенты — подмножество какого-то
+  // открытого заказа. Используется как fallback в putDish: если dishKey не
+  // совпал ни с одним заказом точно, но тарелка достраиваема — bounce+cross
+  // (не сбрасываем). С matching-gate стрянутые состояния по построению не
+  // возникают, проверка остаётся defensive.
   isDishStillBuildable(dish) {
     const ings = this.visibleIngredients(dish);
     if (!ings.length) return true;
@@ -434,33 +495,6 @@ export default class PlayableController extends BaseObject {
     return open.some(({ buyerDish }) =>
       ings.every((i) => buyerDish.products.includes(i))
     );
-  }
-
-  // Cola разрешена, если суммарный in-progress (т.е. одновременно «летящих»
-  // — но в нашей схеме cola улетает мгновенно, поэтому достаточно проверки
-  // demand>0). Просто: есть ли клиент с открытой колой.
-  canTapCola() {
-    return !!this.findBuyerForCola();
-  }
-
-  // Можно ли тапнуть на собранный dish (на основе его visible products).
-  canTapDish(dish) {
-    const dishKey = dishKeyFromIconView(dish);
-    if (!dishKey) return false;
-    return !!this.findBuyerForDishKey(dishKey);
-  }
-
-  // Перед добавлением tortilla — проверяем что есть пустой слот в emptyDishes.
-  // Но также: если у клиентов нет ни одного "не-cola" заказа, лепёшку класть
-  // незачем. Однако пользователь сказал базу можно класть свободно — значит
-  // не блокируем (даже в "холостую"). Возврат всегда true.
-  canTapTortilla() {
-    return this.emptyDishes.length > 0;
-  }
-
-  // Mеат тоже свободно, но нужно чтобы он был доступен (есть нарезанный).
-  canTapMeat() {
-    return true;
   }
 
   // ---------- Cross-popup в точке тапа ----------
@@ -665,48 +699,28 @@ export default class PlayableController extends BaseObject {
   }
 
   updateTortillaInteractive() {
-    const emptyDishes = this.emptyDishes.length;
     ObjectLinks.get(OBJECTS.tortilla).updateInteractive(
-      emptyDishes ? "dynamic" : "auto"
+      this.canTapTortilla() ? "dynamic" : "auto"
     );
   }
 
   addProductToDish(product) {
     const linkID = product.config.linkID;
-    let candidates = this.currentDishes.filter(
-      (dish) => dish.visible && !dish[linkID].visible
-    );
+    // Выбор тарелки через тот же matching-gate, что отработал в
+    // canAddIngredient — никакой расхождения «пропустили / не нашли».
+    const target = this._pickPlateForIngredient(linkID);
+    if (!target) return;
 
-    // Для топингов выбираем такой dish, чтобы после добавления
-    // его ингредиенты оставались подмножеством какого-то открытого buyer dish.
-    if (
-      linkID === PRODUCTS_TYPES.tomato ||
-      linkID === PRODUCTS_TYPES.cucumbers ||
-      linkID === PRODUCTS_TYPES.fry
-    ) {
-      const open = this.openMealBuyerDishes();
-      candidates = candidates.filter((cd) => {
-        const ings = this.visibleIngredients(cd);
-        const newIngs = [...ings, linkID];
-        return open.some(({ buyerDish }) =>
-          newIngs.every((i) => buyerDish.products.includes(i))
-        );
-      });
-    }
+    target[linkID].scenarios.show.reset().start();
+    target.updateFakeDish(linkID);
 
-    const emptyDish = candidates[0];
-    if (emptyDish) {
-      emptyDish[linkID].scenarios.show.reset().start();
-      emptyDish.updateFakeDish(linkID);
-
-      if (linkID == OBJECTS.meat) {
-        const meat = ObjectLinks.get(OBJECTS.meat);
-        let usedMeat;
-        if (meat.meat3.visible) usedMeat = meat.meat3;
-        else if (meat.meat2.visible) usedMeat = meat.meat2;
-        else if (meat.meat1.visible) usedMeat = meat.meat1;
-        usedMeat && usedMeat.hide();
-      }
+    if (linkID == OBJECTS.meat) {
+      const meat = ObjectLinks.get(OBJECTS.meat);
+      let usedMeat;
+      if (meat.meat3.visible) usedMeat = meat.meat3;
+      else if (meat.meat2.visible) usedMeat = meat.meat2;
+      else if (meat.meat1.visible) usedMeat = meat.meat1;
+      usedMeat && usedMeat.hide();
     }
   }
 
@@ -903,24 +917,27 @@ export default class PlayableController extends BaseObject {
             ),
             Rewards.if(
               (food) => food instanceof Tortilla,
-              // Tortilla — без проверок (пользователь разрешил)
-              Rewards.startScenarioInstant("addTortilla"),
-              // Прочие ингредиенты: meat, tomato, cucumbers, fry.
+              // Tortilla — пропускаем, только если matching ещё допустим.
               Rewards.if(
-                (food) => {
-                  const linkID = food.config.linkID;
-                  if (linkID === OBJECTS.meat) return true;
-                  if (TOPPING_KEYS.includes(linkID)) {
-                    return this.canPickTopping(linkID);
-                  }
-                  return true;
-                },
+                () => this.canTapTortilla(),
+                Rewards.startScenarioInstant("addTortilla"),
+                Rewards.startScenario([
+                  Rewards.withArgs(
+                    (food) => food,
+                    Rewards.call("showCrossAtFood")
+                  ),
+                ])
+              ),
+              // meat / tomato / cucumbers / fry — единый matching-gate.
+              Rewards.if(
+                (food) => this.canAddIngredient(food.config.linkID),
                 Rewards.startScenario([
                   Rewards.withArgs(
                     (food) => food,
                     Rewards.call("addProductToDish")
                   ),
                   Rewards.call("updateProductsInteractive"),
+                  Rewards.call("updateTortillaInteractive"),
                   Rewards.call("updateMeatInteractive"),
                   Rewards.call("nextTutorialStep"),
                 ]),
