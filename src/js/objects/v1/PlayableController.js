@@ -633,19 +633,15 @@ export default class PlayableController extends BaseObject {
     this.currentDishes.forEach((dish) => dish.updateInteractive("dynamic"));
   }
 
-  // Управление кликабельностью топингов через canPickTopping.
+  // Топинги всегда оставляем кликабельными — smart-cooking gate работает
+  // в момент тапа в сценарии `addFood`, где проверяется canPickTopping и
+  // показывается cross при отказе. Полагаться на закешированный lock-state
+  // оказалось хрупко (рассинхрон при быстрых тапах / спавнах клиентов).
   updateProductsInteractive() {
     [PRODUCTS_TYPES.tomato, PRODUCTS_TYPES.cucumbers, PRODUCTS_TYPES.fry].forEach(
       (topping) => {
-        const allowed = this.canPickTopping(topping);
-        // Также не разрешаем класть, если на столе нет ни одного открытого
-        // dish с pita (т.е. tortilla уже положена и dish без этого топинга).
-        const hasReceiverDish = this.currentDishes.some(
-          (d) => d.visible && !d[topping].visible
-        );
-        ObjectLinks.get(topping).updateInteractive(
-          allowed && hasReceiverDish ? "dynamic" : "auto"
-        );
+        const obj = ObjectLinks.get(topping);
+        if (obj) obj.updateInteractive("dynamic");
       }
     );
   }
