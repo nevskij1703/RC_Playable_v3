@@ -66,34 +66,51 @@ export default class EditorTool {
     this.copyBtn = document.getElementById("ed-copy");
   }
 
-  // Многошаговый fallback копирования: navigator.clipboard → execCommand →
-  // (если не вышло) просто оставляем текст выделенным в textarea.
+  // Многошаговый fallback копирования: execCommand (надёжный в iframe/file)
+  // → navigator.clipboard (требует https + user gesture, может не сработать)
+  // → выделение текста и подсказка нажать Ctrl+C вручную.
   _copyDump() {
     const text = this.dumpEl ? this.dumpEl.value : "";
     if (!text) return;
+
+    // 1) execCommand через выделение textarea — работает почти везде.
     let ok = false;
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text);
-        ok = true;
-      }
-    } catch (e) {}
-    if (!ok) {
-      try {
-        this.dumpEl.focus();
-        this.dumpEl.select();
-        ok = document.execCommand("copy");
-      } catch (e) {}
-    }
-    if (!ok) {
-      // Последний фолбэк — выделим текст, пользователь жмёт Ctrl+C сам.
       this.dumpEl.focus();
       this.dumpEl.select();
-      this.statusEl.innerHTML =
-        "Авто-копирование не сработало. Выдели текст и нажми <b>Ctrl+C</b>.";
+      ok = document.execCommand && document.execCommand("copy");
+    } catch (e) {}
+    if (ok) {
+      this.statusEl.innerHTML = "Скопировано в буфер обмена ✓";
       return;
     }
-    this.statusEl.innerHTML = "Скопировано в буфер обмена ✓";
+
+    // 2) navigator.clipboard — асинхронно, ловим rejection.
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => {
+          this.statusEl.innerHTML = "Скопировано в буфер обмена ✓";
+        },
+        () => {
+          // 3) Не вышло вовсе — оставим текст выделенным.
+          try {
+            this.dumpEl.focus();
+            this.dumpEl.select();
+          } catch (e) {}
+          this.statusEl.innerHTML =
+            "Авто-копирование заблокировано. Выдели текст и нажми <b>Ctrl+C</b>.";
+        }
+      );
+      return;
+    }
+
+    // 3) Без API: выделить и попросить юзера.
+    try {
+      this.dumpEl.focus();
+      this.dumpEl.select();
+    } catch (e) {}
+    this.statusEl.innerHTML =
+      "Авто-копирование не сработало. Выдели текст и нажми <b>Ctrl+C</b>.";
   }
 
   _listenResize() {
@@ -262,9 +279,6 @@ export default class EditorTool {
     if (this.copyBtn) this.copyBtn.style.display = "block";
     this.statusEl.innerHTML =
       "Сохранено в localStorage. JSON ниже — жми <b>«Скопировать в буфер»</b> или выдели вручную.";
-
-    // Попробуем сразу скопировать (если есть пользовательский жест-контекст).
-    this._copyDump();
   }
 
   resetAndReload() {
