@@ -392,10 +392,13 @@ export default class PlayableController extends BaseObject {
     return out;
   }
 
-  // Можно ли добавить product (топинг или meat) к ОДНОМУ ИЗ currentDishes,
-  // так чтобы результирующая комбинация ингредиентов оставалась подмножеством
-  // продуктов какого-нибудь открытого buyer dish, и при этом для остальных
-  // currentDishes тоже остаются открытые buyerDish slots (без двойного учёта).
+  // Можно ли добавить product к КАКОЙ-нибудь currentDish так, чтобы
+  // результирующая комбинация была подмножеством продуктов хотя бы одного
+  // открытого buyer dish.
+  // Учёт "занятости" buyer dishes мы НЕ ведём — над-сборка обходится
+  // discard-механизмом (тап на застрявшую тарелку сбрасывает её).
+  // Это правило простое и корректное: предотвращает только заведомо
+  // ненужную сборку.
   canAddProductToAnyDish(product) {
     const open = this.openMealBuyerDishes();
     if (!open.length) return false;
@@ -406,28 +409,11 @@ export default class PlayableController extends BaseObject {
     if (!candidates.length) return false;
 
     for (const cd of candidates) {
-      // Считаем «занятые» buyerDish'и ОСТАЛЬНЫМИ currentDishes (без cd —
-      // его-то мы и собираемся менять). Жадное assignment.
-      const taken = new Set();
-      for (const other of this.currentDishes) {
-        if (other === cd || !other.visible) continue;
-        const ings = this.visibleIngredients(other);
-        const found = open.find(
-          ({ buyerDish }) =>
-            !taken.has(buyerDish) &&
-            ings.every((i) => buyerDish.products.includes(i))
-        );
-        if (found) taken.add(found.buyerDish);
-      }
-
-      // Проверяем, найдётся ли свободный buyerDish для cd+product.
       const ings = this.visibleIngredients(cd);
       const newIngs = ings.includes(product) ? ings : [...ings, product];
       if (newIngs.includes(OBJECTS.cola)) continue;
-      const fits = open.find(
-        ({ buyerDish }) =>
-          !taken.has(buyerDish) &&
-          newIngs.every((i) => buyerDish.products.includes(i))
+      const fits = open.some(({ buyerDish }) =>
+        newIngs.every((i) => buyerDish.products.includes(i))
       );
       if (fits) return true;
     }
