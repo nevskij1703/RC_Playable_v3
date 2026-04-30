@@ -363,29 +363,70 @@ export default class PlayableController extends BaseObject {
 
   // ---------- Smart cooking ----------
 
-  // Сколько раз топинг встречается в открытых dish'ах активных клиентов.
-  demandForTopping(topping) {
-    let count = 0;
+  // Возвращает массив visible-ингредиентов dish (без plate/pita): meat,
+  // tomato, cucumbers, fry, cola.
+  visibleIngredients(dish) {
+    const keys = ["meat", "tomato", "cucumbers", "fry"];
+    return keys.filter((k) => dish[k] && dish[k].visible);
+  }
+
+  // Все «приёмные» buyer dishes (открытые, не cola): {buyer, dish}.
+  openMealBuyerDishes() {
+    const out = [];
     for (const buyer of this.activeBuyers) {
       if (!buyer) continue;
       for (const d of buyer.dishes) {
-        if (!d.complete && d.products.includes(topping)) count++;
+        if (d.complete || d.cola) continue;
+        out.push({ buyer, buyerDish: d });
       }
     }
-    return count;
+    return out;
   }
 
-  // Сколько dishes на столе уже имеют этот топинг (in-progress).
-  inProgressWithTopping(topping) {
-    return this.currentDishes.filter(
-      (dish) => dish.visible && dish[topping] && dish[topping].visible
-    ).length;
+  // Можно ли добавить product (топинг или meat) к ОДНОМУ ИЗ currentDishes,
+  // так чтобы результирующая комбинация ингредиентов оставалась подмножеством
+  // продуктов какого-нибудь открытого buyer dish, и при этом для остальных
+  // currentDishes тоже остаются открытые buyerDish slots (без двойного учёта).
+  canAddProductToAnyDish(product) {
+    const open = this.openMealBuyerDishes();
+    if (!open.length) return false;
+
+    const candidates = this.currentDishes.filter(
+      (d) => d.visible && (!d[product] || !d[product].visible)
+    );
+    if (!candidates.length) return false;
+
+    for (const cd of candidates) {
+      // Считаем «занятые» buyerDish'и ОСТАЛЬНЫМИ currentDishes (без cd —
+      // его-то мы и собираемся менять). Жадное assignment.
+      const taken = new Set();
+      for (const other of this.currentDishes) {
+        if (other === cd || !other.visible) continue;
+        const ings = this.visibleIngredients(other);
+        const found = open.find(
+          ({ buyerDish }) =>
+            !taken.has(buyerDish) &&
+            ings.every((i) => buyerDish.products.includes(i))
+        );
+        if (found) taken.add(found.buyerDish);
+      }
+
+      // Проверяем, найдётся ли свободный buyerDish для cd+product.
+      const ings = this.visibleIngredients(cd);
+      const newIngs = ings.includes(product) ? ings : [...ings, product];
+      if (newIngs.includes(OBJECTS.cola)) continue;
+      const fits = open.find(
+        ({ buyerDish }) =>
+          !taken.has(buyerDish) &&
+          newIngs.every((i) => buyerDish.products.includes(i))
+      );
+      if (fits) return true;
+    }
+    return false;
   }
 
   canPickTopping(topping) {
-    return (
-      this.inProgressWithTopping(topping) < this.demandForTopping(topping)
-    );
+    return this.canAddProductToAnyDish(topping);
   }
 
   // Cola разрешена, если суммарный in-progress (т.е. одновременно «летящих»
@@ -490,39 +531,47 @@ export default class PlayableController extends BaseObject {
       this.currentTutorialStep = { object: "dish" };
     }
 
+    const target =
+      this.currentTutorialStep.object == "dish"
+        ? this.getActiveDish()
+        : this.currentTutorialStep.object == "pan"
+        ? this.getActivePan()
+        : this.currentTutorialStep.object == "cola"
+        ? this.getVisibleCola()
+        : ObjectLinks.get(this.currentTutorialStep.object);
+
+    if (!target) {
+      // Невозможно показать tutorial-step (объект скрыт/уничтожен): тихо
+      // не падаем, просто откладываем подсказку.
+      this.stopTutorial();
+      return;
+    }
+
     this.tutorial.startTutorialTap({
-      target:
-        this.currentTutorialStep.object == "dish"
-          ? this.getActiveDish()
-          : this.currentTutorialStep.object == "pan"
-          ? this.getActivePan()
-          : this.currentTutorialStep.object == "cola"
-          ? this.getVisibleCola()
-          : ObjectLinks.get(this.currentTutorialStep.object),
+      target,
       delay: TUTORIAL_DELAY_FOR_NEW_PRODUCT,
     });
   }
 
   resumeTutorial() {
-    if (this.currentTutorialStep) {
-      const target =
-          this.currentTutorialStep.object == "dish"
-            ? this.getActiveDish()
-            : this.currentTutorialStep.object == "pan"
-            ? this.getActivePan()
-            : this.currentTutorialStep.object == "cola"
-            ? this.getVisibleCola()
-            : ObjectLinks.get(this.currentTutorialStep.object),
-        delay =
-          this.currentTutorialStep.delay !== undefined
-            ? this.currentTutorialStep.delay
-            : TUTORIAL_DELAY_FOR_NEW_PRODUCT;
-      target &&
-        this.tutorial.startTutorialTap({
-          target,
-          delay,
-        });
+    if (!this.currentTutorialStep) return;
+    const target =
+      this.currentTutorialStep.object == "dish"
+        ? this.getActiveDish()
+        : this.currentTutorialStep.object == "pan"
+        ? this.getActivePan()
+        : this.currentTutorialStep.object == "cola"
+        ? this.getVisibleCola()
+        : ObjectLinks.get(this.currentTutorialStep.object);
+    if (!target) {
+      this.stopTutorial();
+      return;
     }
+    const delay =
+      this.currentTutorialStep.delay !== undefined
+        ? this.currentTutorialStep.delay
+        : TUTORIAL_DELAY_FOR_NEW_PRODUCT;
+    this.tutorial.startTutorialTap({ target, delay });
   }
 
   stopTutorial() {
@@ -620,17 +669,34 @@ export default class PlayableController extends BaseObject {
   }
 
   addProductToDish(product) {
-    let emptyDish;
-    let emptyDishes = this.currentDishes.filter(
-      (dish) => !dish[product.config.linkID].visible
+    const linkID = product.config.linkID;
+    let candidates = this.currentDishes.filter(
+      (dish) => dish.visible && !dish[linkID].visible
     );
-    emptyDish = emptyDishes[0];
 
+    // Для топингов выбираем такой dish, чтобы после добавления
+    // его ингредиенты оставались подмножеством какого-то открытого buyer dish.
+    if (
+      linkID === PRODUCTS_TYPES.tomato ||
+      linkID === PRODUCTS_TYPES.cucumbers ||
+      linkID === PRODUCTS_TYPES.fry
+    ) {
+      const open = this.openMealBuyerDishes();
+      candidates = candidates.filter((cd) => {
+        const ings = this.visibleIngredients(cd);
+        const newIngs = [...ings, linkID];
+        return open.some(({ buyerDish }) =>
+          newIngs.every((i) => buyerDish.products.includes(i))
+        );
+      });
+    }
+
+    const emptyDish = candidates[0];
     if (emptyDish) {
-      emptyDish[product.config.linkID].scenarios.show.reset().start();
-      emptyDish.updateFakeDish(product.config.linkID);
+      emptyDish[linkID].scenarios.show.reset().start();
+      emptyDish.updateFakeDish(linkID);
 
-      if (product.config.linkID == OBJECTS.meat) {
+      if (linkID == OBJECTS.meat) {
         const meat = ObjectLinks.get(OBJECTS.meat);
         let usedMeat;
         if (meat.meat3.visible) usedMeat = meat.meat3;
@@ -688,6 +754,16 @@ export default class PlayableController extends BaseObject {
     this.cola.children.forEach((drink) => {
       !drink.baseObject.visible && drink.baseObject.show();
     });
+  }
+
+  // Если на столе кол не осталось — пополняем все 3. Так пользователь не
+  // упирается в пустую полку: визуально cola «бесконечная», логически
+  // ограничивает только наличие заказов.
+  maybeRefillCola() {
+    const visible = this.cola.children.filter((c) => c.visible).length;
+    if (visible === 0) {
+      this.showDrinks();
+    }
   }
 
   emitCoinsForSlot(slotIndex) {
@@ -869,6 +945,7 @@ export default class PlayableController extends BaseObject {
                 (cola) => cola && cola._targetBuyer,
                 Rewards.call("onDeliveryComplete")
               ),
+              Rewards.call("maybeRefillCola"),
               () => this.updateTutorial(),
             ]),
             Rewards.startScenario([
@@ -939,12 +1016,20 @@ export default class PlayableController extends BaseObject {
               () => this.updateTutorial(),
             ]),
             Rewards.startScenario([
-              // Нет клиента под этот dish: показываем cross в точке dish,
-              // dish остаётся (игрок может попробовать другое).
+              // Нет клиента под этот dish — это «застрявшая» сборка. Чтобы не
+              // блокировать кухню, очищаем тарелку и возвращаем её в пул.
               Rewards.withArgs(
                 (dish) => dish,
                 Rewards.call("showCrossAtFood")
               ),
+              Rewards.withArgs((dish) => dish, Rewards.call("setDishEmpty")),
+              Rewards.withArgs(
+                (dish) => dish,
+                Rewards.call("removeDishFromCurrent")
+              ),
+              Rewards.call("updateTortillaInteractive"),
+              Rewards.call("updateProductsInteractive"),
+              () => this.updateTutorial(),
             ])
           ),
         ],
