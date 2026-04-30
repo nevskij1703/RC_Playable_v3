@@ -23,12 +23,14 @@ export default {
 
     {
       class: MainContainer,
-      // Сдвигаем сцену немного вниз, чтобы тултипы клиентов не лезли на
-      // верхнюю HUD-панель и помещались на маленьких экранах.
-      position: { absolute: true, centered: true, x: 0, y: 60 },
-      position_portrait: { absolute: true, centered: true, x: 0, y: 50 },
-      scale: { x: 0.92, y: 0.92 },
-      scale_portrait: { x: 1, y: 1 },
+      // Landscape: значительно расширенная область видимости — сцена
+      // сжимается, чтобы баблы клиентов и верхняя HUD-панель ни при каких
+      // условиях не перекрывались. В portrait чуть мягче (ширины и так
+      // хватает, нужно только освободить верх под HUD).
+      position: { absolute: true, centered: true, x: 0, y: 70 },
+      position_portrait: { absolute: true, centered: true, x: 0, y: 60 },
+      scale: { x: 0.78, y: 0.78 },
+      scale_portrait: { x: 0.95, y: 0.95 },
       children: [
         {
           linkID: OBJECTS.location,

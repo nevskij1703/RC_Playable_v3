@@ -5,25 +5,26 @@ import {
   PIXI,
 } from "PlayableAdsEngine";
 
-const PANEL_W = 260;
-const PANEL_H = 52;
-const PANEL_R = 18;
+const PANEL_W = 290;
+const PANEL_H = 56;
+const PANEL_R = 20;
 
 const COL_BG = 0xf7e7b5;
 const COL_STROKE = 0xd79a55;
-const COL_TEXT = 0x7561c8;
+const COL_TEXT = 0x7561c8;          // фиолетово-синий — основной счётчик
+const COL_TEXT_ORANGE = 0xe07a2a;   // оранжевый — для «/total»
+const COL_PILL = 0xfffaee;
 const COL_CLIENT_BLUE = 0x4fa8e0;
 const COL_CLIENT_BLUE_DARK = 0x2f7fbf;
 
-// Hud-панель сверху экрана: слева монеты coins/maxCoins, справа
-// обслуженные клиенты served/total. Рисуется в PIXI.Graphics + PIXI.Text
-// (без растровых ассетов), чтобы соответствовать дизайну референса.
+// Hud-панель: слева — монеты (накопленные, без max), справа — клиенты
+// (servedClients/totalClients, где /total оранжевый). Каждый счётчик
+// сидит на своей белой капсуле; иконка торчит влево из капсулы.
 export default class HudPanel extends Container {
   setup() {
     super.setup();
 
     this.coins = 0;
-    this.maxCoins = this.config.maxCoins || 0;
     this.served = 0;
     this.total = this.config.total || 0;
 
@@ -37,11 +38,11 @@ export default class HudPanel extends Container {
 
   _buildBackground() {
     const g = new PIXI.Graphics();
-    // soft shadow
-    g.beginFill(0x000000, 0.2);
+    // soft drop shadow
+    g.beginFill(0x000000, 0.22);
     g.drawRoundedRect(-PANEL_W / 2 + 2, -PANEL_H / 2 + 4, PANEL_W, PANEL_H, PANEL_R);
     g.endFill();
-    // outer stroke (orange ring)
+    // outer stroke (orange)
     g.beginFill(COL_STROKE);
     g.drawRoundedRect(-PANEL_W / 2, -PANEL_H / 2, PANEL_W, PANEL_H, PANEL_R);
     g.endFill();
@@ -60,105 +61,147 @@ export default class HudPanel extends Container {
 
   _coinIcon() {
     const g = new PIXI.Graphics();
-    // coin: yellow with orange ring
-    g.beginFill(0xe8a23a);
-    g.drawCircle(0, 0, 16);
+    g.beginFill(0xc97a18);
+    g.drawCircle(0, 0, 17);
     g.endFill();
     g.beginFill(0xffd750);
-    g.drawCircle(0, 0, 13);
+    g.drawCircle(0, 0, 14);
     g.endFill();
-    // inner light highlight
     g.beginFill(0xffe98e);
     g.drawCircle(-3, -3, 5);
     g.endFill();
-    // coin "C" mark
     g.lineStyle(3, 0xc97a18, 1);
-    g.arc(0, 0, 6, Math.PI * 0.25, Math.PI * 1.75);
+    g.arc(0, 0, 6.5, Math.PI * 0.25, Math.PI * 1.75);
     return g;
   }
 
   _clientIcon() {
-    const c = new PIXI.Container();
-    const bg = new PIXI.Graphics();
-    bg.beginFill(COL_CLIENT_BLUE_DARK);
-    bg.drawRoundedRect(-19, -19, 38, 38, 12);
-    bg.endFill();
-    bg.beginFill(COL_CLIENT_BLUE);
-    bg.drawRoundedRect(-17, -17, 34, 34, 10);
-    bg.endFill();
-    // person silhouette (white)
-    bg.beginFill(0xffffff);
-    bg.drawCircle(0, -5, 6);
-    bg.drawRoundedRect(-9, 2, 18, 14, 5);
-    bg.endFill();
-    c.addChild(bg);
-    return c;
+    const g = new PIXI.Graphics();
+    g.beginFill(COL_CLIENT_BLUE_DARK);
+    g.drawRoundedRect(-18, -18, 36, 36, 11);
+    g.endFill();
+    g.beginFill(COL_CLIENT_BLUE);
+    g.drawRoundedRect(-16, -16, 32, 32, 9);
+    g.endFill();
+    // person silhouette
+    g.beginFill(0xffffff);
+    g.drawCircle(0, -5, 5.5);
+    g.drawRoundedRect(-9, 1, 18, 13, 5);
+    g.endFill();
+    return g;
   }
 
-  _makeText(initial) {
+  _makePill(w, h) {
+    const p = new PIXI.Graphics();
+    // тонкая внутренняя тень
+    p.beginFill(COL_STROKE, 0.18);
+    p.drawRoundedRect(-w / 2, -h / 2 + 1, w, h, h / 2);
+    p.endFill();
+    p.beginFill(COL_PILL);
+    p.drawRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    p.endFill();
+    return p;
+  }
+
+  _makeText(initial, color) {
     return new PIXI.Text(initial, {
       fontFamily: "Arial Black, Arial, sans-serif",
       fontSize: 22,
       fontWeight: "900",
-      fill: COL_TEXT,
-      stroke: 0xffffff,
-      strokeThickness: 0,
+      fill: color,
     });
   }
 
   _buildCoinSection() {
+    // Капсула справа от иконки
+    const pillW = 84;
+    const pillH = 32;
+    const pillCx = -PANEL_W / 2 + 24 + pillW / 2 - 4; // капсула чуть-чуть наезжает на иконку слева
+    const pill = this._makePill(pillW, pillH);
+    pill.x = pillCx;
+    pill.y = 0;
+    this.view.addChild(pill);
+
+    // Иконка торчит слева, перекрывая край капсулы
     const icon = this._coinIcon();
-    icon.x = -PANEL_W / 2 + 26;
+    icon.x = pillCx - pillW / 2 + 2;
     icon.y = 0;
     this.view.addChild(icon);
 
-    const t = this._makeText("0/0");
-    t.anchor.set(0, 0.5);
-    t.x = -PANEL_W / 2 + 50;
+    const t = this._makeText("0", COL_TEXT);
+    t.anchor.set(0.5, 0.5);
+    t.x = pillCx + 12; // сдвиг текста чуть правее, чтобы место под иконку
     t.y = -1;
     this.view.addChild(t);
     this._coinText = t;
+    this._coinPillCx = pillCx;
   }
 
   _buildClientSection() {
+    const pillW = 84;
+    const pillH = 32;
+    const pillCx = PANEL_W / 2 - 24 - pillW / 2 + 4;
+    const pill = this._makePill(pillW, pillH);
+    pill.x = pillCx;
+    pill.y = 0;
+    this.view.addChild(pill);
+
+    // Иконка слева от капсулы (как и для монет — иконка слева)
     const icon = this._clientIcon();
-    icon.x = PANEL_W / 2 - 28;
+    icon.x = pillCx - pillW / 2 + 2;
     icon.y = 0;
     this.view.addChild(icon);
 
-    const t = this._makeText("0/0");
-    t.anchor.set(1, 0.5);
-    t.x = PANEL_W / 2 - 52;
-    t.y = -1;
-    this.view.addChild(t);
-    this._clientText = t;
+    // Два текста: served (фиолет) и /total (оранжевый), позиционируются
+    // относительно центра капсулы (со сдвигом вправо под иконку).
+    const tServed = this._makeText("0", COL_TEXT);
+    tServed.anchor.set(1, 0.5);
+    this.view.addChild(tServed);
+
+    const tTotal = this._makeText("/0", COL_TEXT_ORANGE);
+    tTotal.anchor.set(0, 0.5);
+    this.view.addChild(tTotal);
+
+    this._clientServedText = tServed;
+    this._clientTotalText = tTotal;
+    this._clientPillCx = pillCx;
+
+    this._layoutClientTexts();
+  }
+
+  _layoutClientTexts() {
+    if (!this._clientServedText) return;
+    // Центрируем композитный текст в правой части капсулы (где нет иконки).
+    const baseX = this._clientPillCx + 12;
+    const y = -1;
+    this._clientServedText.x = baseX;
+    this._clientServedText.y = y;
+    this._clientTotalText.x = baseX;
+    this._clientTotalText.y = y;
+    // anchor = 1 у tServed; anchor = 0 у tTotal — оба «прижимаются» к baseX,
+    // получая визуально слитный текст вида "served/total".
   }
 
   _render() {
-    if (this._coinText)
-      this._coinText.text = `${this.coins}/${this.maxCoins}`;
-    if (this._clientText)
-      this._clientText.text = `${this.served}/${this.total}`;
+    if (this._coinText) this._coinText.text = `${this.coins}`;
+    if (this._clientServedText) {
+      this._clientServedText.text = `${this.served}`;
+      this._clientTotalText.text = `/${this.total}`;
+      this._layoutClientTexts();
+    }
   }
 
   // ---------- Public API ----------
-
-  setMaxCoins(v) {
-    this.maxCoins = v | 0;
-    this._render();
-  }
 
   setTotal(v) {
     this.total = v | 0;
     this._render();
   }
 
-  // Численная анимация: тикает по 1 шагу с малой задержкой,
-  // плюс лёгкий bounce-scale на каждое прибавление.
+  // Численная анимация: тикает по 1 шагу с малой задержкой.
   addCoins(delta) {
     if (delta <= 0) return;
-    const target = Math.min(this.coins + delta, this.maxCoins);
-    if (target <= this.coins) return;
+    const target = this.coins + delta;
     if (this._coinTickTimer) clearInterval(this._coinTickTimer);
     const stepMs = Math.max(18, Math.min(50, 700 / (target - this.coins)));
     this._coinTickTimer = setInterval(() => {
@@ -184,7 +227,7 @@ export default class HudPanel extends Container {
     this._bounceActive = true;
     new Animation(this, {
       from: { scale: { x: 1, y: 1 } },
-      to: { scale: { x: 1.08, y: 1.08 } },
+      to: { scale: { x: 1.07, y: 1.07 } },
       duration: 90,
       yoyo: true,
       autoStart: true,

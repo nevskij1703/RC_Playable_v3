@@ -150,54 +150,45 @@ export default class PlayableController extends BaseObject {
     this.totalSpawned = 0;
     this.spawningSlots = new Set();
 
-    // Пре-генерируем заказы для всех TOTAL_BUYERS чтобы заранее знать
-    // суммарную стоимость уровня (maxCoins). spawnBuyerInSlot будет брать
-    // из этой очереди по индексу this.totalSpawned.
+    // Пре-генерируем заказы для всех TOTAL_BUYERS — фиксируем сюжет уровня.
+    // spawnBuyerInSlot берёт заказ из очереди по индексу this.totalSpawned.
     this.preGeneratedOrders = [];
-    let levelMaxCoins = 0;
     for (let i = 0; i < TOTAL_BUYERS; i++) {
-      const dishes = this.generateRandomOrder();
-      this.preGeneratedOrders.push(dishes);
-      for (const d of dishes) levelMaxCoins += dishPrice(d);
+      this.preGeneratedOrders.push(this.generateRandomOrder());
     }
-    this.levelMaxCoins = levelMaxCoins;
 
-    // HUD-панель сверху: maxCoins + total clients проставляются сейчас.
+    // HUD: общее количество клиентов уровня. Целевая сумма монет НЕ
+    // сообщается игроку — счётчик просто накапливает.
     const hud = ObjectLinks.get(OBJECTS.hudPanel);
-    if (hud) {
-      hud.setMaxCoins(levelMaxCoins);
-      hud.setTotal(TOTAL_BUYERS);
-    }
+    if (hud) hud.setTotal(TOTAL_BUYERS);
 
-    // Все пулы монет летят к HUD-панели (а не к коинам у клиентов).
+    // Все пулы монет летят к HUD-панели и стартуют из тултипа клиента
+    // (бабл с заказом). Каждому слоту — свой пул со своим source.
     ParticleEmitter.createPools({
       startSize: 100,
       poolAdditionalSize: 25,
       coin1: {
         class: Particle,
         image: "ui/coin_reward",
-        flyTime: 500,
+        flyTime: 600,
         container: OBJECTS.coins,
-        source: OBJECTS.coins,
-        p1: OBJECTS.p1,
+        source: OBJECTS.tooltip1,
         destination: OBJECTS.hudPanel,
       },
       coin2: {
         class: Particle,
         image: "ui/coin_reward",
-        flyTime: 500,
+        flyTime: 600,
         container: OBJECTS.coins,
-        source: OBJECTS.coins,
-        p1: OBJECTS.p2,
+        source: OBJECTS.tooltip2,
         destination: OBJECTS.hudPanel,
       },
       coin3: {
         class: Particle,
         image: "ui/coin_reward",
-        flyTime: 500,
+        flyTime: 600,
         container: OBJECTS.coins,
-        source: OBJECTS.coins,
-        p1: OBJECTS.p3,
+        source: OBJECTS.tooltip3,
         destination: OBJECTS.hudPanel,
       },
       smoke: {
@@ -349,6 +340,8 @@ export default class PlayableController extends BaseObject {
       }, TIMINGS.characterMoveOut * 0.4);
 
       tooltip.hide();
+      // Монетки вылетают из бабла клиента сразу после его исчезновения.
+      this.emitCoinsForSlot(slotIndex, buyer);
     }, 800);
 
     // Сразу после ухода — пересчёт интерактивов: возможно, какой-то топинг
@@ -844,15 +837,13 @@ export default class PlayableController extends BaseObject {
     }, 50);
 
     // HUD: считаем стоимость заказа клиента и тикаем счётчики.
-    // Плановая задержка ≈ flyTime монет, чтобы цифры росли «вместе с прилётом».
+    // Прибавление синхронизировано с прилётом монеток (≈ flyTime).
     const hud = ObjectLinks.get(OBJECTS.hudPanel);
     if (hud && buyer) {
       let sum = 0;
       for (const d of buyer.dishes) sum += dishPrice(d);
-      setTimeout(() => {
-        hud.addCoins(sum);
-        hud.addClient();
-      }, 380);
+      hud.addClient();
+      setTimeout(() => hud.addCoins(sum), 480);
     }
   }
 
@@ -861,7 +852,6 @@ export default class PlayableController extends BaseObject {
   onDeliveryComplete(buyer) {
     if (!buyer) return;
     if (buyer.dishes.every((d) => d.complete)) {
-      this.emitCoinsForSlot(buyer.slotIndex, buyer);
       // Последний клиент игры → переход в стор.
       if (
         !this.hasMoreBuyers() &&
@@ -877,10 +867,13 @@ export default class PlayableController extends BaseObject {
         character.addAnimation(CHARACTER_ANIMATIONS.idle, true);
         setTimeout(() => {
           buyer.tooltip.hide();
+          // Монетки вылетают сразу после исчезновения бабла последнего клиента.
+          this.emitCoinsForSlot(buyer.slotIndex, buyer);
           this.triggerStore();
         }, 600);
         return;
       }
+      // releaseSlot сам эмитит монетки в момент tooltip.hide().
       this.releaseSlot(buyer);
     }
   }
