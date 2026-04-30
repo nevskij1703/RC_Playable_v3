@@ -242,13 +242,13 @@ export default class PlayableController extends BaseObject {
     tooltip.resetForReuse();
     tooltip.updateIcons(0);
 
-    // Равномерное распределение слотов в бабле.
+    // Равномерное распределение слотов в бабле (увеличен под иконки 0.75x).
     const Y_LAYOUT = {
-      1: [140],
-      2: [85, 200],
-      3: [55, 140, 225],
+      1: [175],
+      2: [110, 245],
+      3: [70, 175, 280],
     };
-    const ys = Y_LAYOUT[dishes.length] || [140];
+    const ys = Y_LAYOUT[dishes.length] || [175];
 
     const orderGroup = tooltip.container.icons.children.find((c) => c.visible);
     if (orderGroup && orderGroup.children) {

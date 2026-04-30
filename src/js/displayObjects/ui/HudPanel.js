@@ -5,9 +5,11 @@ import {
   PIXI,
 } from "PlayableAdsEngine";
 
-const PANEL_W = 290;
+const PANEL_W = 340;
 const PANEL_H = 56;
 const PANEL_R = 20;
+const PILL_W = 110;
+const PILL_H = 32;
 
 const COL_BG = 0xf7e7b5;
 const COL_STROKE = 0xd79a55;
@@ -114,23 +116,23 @@ export default class HudPanel extends Container {
 
   _buildCoinSection() {
     // Капсула справа от иконки
-    const pillW = 84;
-    const pillH = 32;
-    const pillCx = -PANEL_W / 2 + 24 + pillW / 2 - 4; // капсула чуть-чуть наезжает на иконку слева
-    const pill = this._makePill(pillW, pillH);
+    const pillCx = -PANEL_W / 2 + 24 + PILL_W / 2 - 4;
+    const pill = this._makePill(PILL_W, PILL_H);
     pill.x = pillCx;
     pill.y = 0;
     this.view.addChild(pill);
 
     // Иконка торчит слева, перекрывая край капсулы
     const icon = this._coinIcon();
-    icon.x = pillCx - pillW / 2 + 2;
+    icon.x = pillCx - PILL_W / 2 + 2;
     icon.y = 0;
     this.view.addChild(icon);
 
     const t = this._makeText("0", COL_TEXT);
     t.anchor.set(0.5, 0.5);
-    t.x = pillCx + 12; // сдвиг текста чуть правее, чтобы место под иконку
+    // Текст в центре правой части капсулы (где нет иконки): сдвиг
+    // от центра капсулы вправо на ~icon-overhang/2.
+    t.x = pillCx + 14;
     t.y = -1;
     this.view.addChild(t);
     this._coinText = t;
@@ -138,17 +140,15 @@ export default class HudPanel extends Container {
   }
 
   _buildClientSection() {
-    const pillW = 84;
-    const pillH = 32;
-    const pillCx = PANEL_W / 2 - 24 - pillW / 2 + 4;
-    const pill = this._makePill(pillW, pillH);
+    const pillCx = PANEL_W / 2 - 24 - PILL_W / 2 + 4;
+    const pill = this._makePill(PILL_W, PILL_H);
     pill.x = pillCx;
     pill.y = 0;
     this.view.addChild(pill);
 
     // Иконка слева от капсулы (как и для монет — иконка слева)
     const icon = this._clientIcon();
-    icon.x = pillCx - pillW / 2 + 2;
+    icon.x = pillCx - PILL_W / 2 + 2;
     icon.y = 0;
     this.view.addChild(icon);
 
@@ -172,7 +172,7 @@ export default class HudPanel extends Container {
   _layoutClientTexts() {
     if (!this._clientServedText) return;
     // Центрируем композитный текст в правой части капсулы (где нет иконки).
-    const baseX = this._clientPillCx + 12;
+    const baseX = this._clientPillCx + 14;
     const y = -1;
     this._clientServedText.x = baseX;
     this._clientServedText.y = y;

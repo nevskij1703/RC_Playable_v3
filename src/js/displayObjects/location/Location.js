@@ -398,13 +398,17 @@ export default class Location extends Container {
               // выше головы; bubble спускается до уровня плеч/груди.
               position_portrait: {
                 x: [-310, -85, 130][idx],
-                y: [-440, -440, -440][idx],
+                y: [-460, -460, -460][idx],
               },
               position: {
                 x: [-310, -85, 130][idx],
-                y: [-430, -430, -430][idx],
+                y: [-440, -440, -440][idx],
               },
+              // Landscape: бабл стандартный (×0.85). Portrait: дополнительно
+              // увеличиваем весь tooltip ×1.5 → 1.275, чтобы и бабл, и
+              // иконки заказов в нём росли вместе.
               scale: { x: 0.85, y: 0.85 },
+              scale_portrait: { x: 1.275, y: 1.275 },
               visible: false,
               // Один orderGroup с 3 универсальными слотами. Контроллер при
               // спавне клиента вызывает setProducts() на нужном количестве
@@ -421,20 +425,20 @@ export default class Location extends Container {
                       {
                         class: ProductOnTooltip,
                         products: [OBJECTS.cola],
-                        scale: { x: 0.5, y: 0.5 },
-                        position: { x: 50, y: 50 },
+                        scale: { x: 0.75, y: 0.75 },
+                        position: { x: 70, y: 70 },
                       },
                       {
                         class: ProductOnTooltip,
                         products: [OBJECTS.cola],
-                        scale: { x: 0.5, y: 0.5 },
-                        position: { x: 50, y: 140 },
+                        scale: { x: 0.75, y: 0.75 },
+                        position: { x: 70, y: 175 },
                       },
                       {
                         class: ProductOnTooltip,
                         products: [OBJECTS.cola],
-                        scale: { x: 0.5, y: 0.5 },
-                        position: { x: 50, y: 230 },
+                        scale: { x: 0.75, y: 0.75 },
+                        position: { x: 70, y: 280 },
                       },
                     ],
                   },

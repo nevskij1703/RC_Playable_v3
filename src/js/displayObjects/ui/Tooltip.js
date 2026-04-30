@@ -110,10 +110,10 @@ export default class Tooltip extends Container {
               name: "bubble",
               image: "ui/bubble",
               position: {x: 0, y: 0},
-              // Экстремально вертикальный (≈3:1): native ~240x119,
-              // после {x:0.4, y:2.4} → ~96x285. 3 ProductOnTooltip-слота
-              // умещаются столбиком внутри.
-              scale: {x: 0.4, y: 2.4},
+              // Native ~240x119. Бабл вертикальный, расширен под укрупнённые
+              // иконки блюд (×1.5 от базового). После {x:0.6, y:3.0}
+              // → ~144x357: 3 слота 0.75x помещаются комфортно.
+              scale: {x: 0.6, y: 3.0},
             },
             Object.assign(
               {
