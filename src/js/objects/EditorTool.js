@@ -3,6 +3,21 @@ import { OBJECTS } from "../const";
 
 const STORAGE_KEY = "rcp_editor_layout_v1";
 
+// Дефолтный layout — встраивается в код, применяется на чистой сборке
+// (без localStorage). Получен из in-game редактора. localStorage юзера
+// имеет приоритет: его правки override-ят эти значения.
+const DEFAULT_LAYOUT = {
+  portrait: {
+    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 80, y: 114, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: -349, y: -488, scaleX: 0.937, scaleY: 0.937 },
+    tooltip2: { x: -119, y: -486, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3: { x: 83, y: -488, scaleX: 0.937, scaleY: 0.937 },
+    hudPanel: { x: 0, y: -370, scaleX: 1, scaleY: 1 },
+  },
+};
+
 // Список редактируемых объектов: имя + способ найти baseObject.
 // path: spawn-character доступ через буферный контейнер; linkID — через ObjectLinks.
 const TARGETS = [
@@ -288,16 +303,20 @@ export default class EditorTool {
 
   applyStoredLayout() {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (e) {
-      return;
+    let stored = {};
+    if (raw) {
+      try {
+        stored = JSON.parse(raw) || {};
+      } catch (e) {}
     }
     const orient = this._orientation();
-    const layout = data && data[orient];
-    if (!layout) return;
+    // localStorage override-ит default-ы для каждого таргета по отдельности.
+    const layout = Object.assign(
+      {},
+      (DEFAULT_LAYOUT && DEFAULT_LAYOUT[orient]) || {},
+      stored[orient] || {}
+    );
+    if (!Object.keys(layout).length) return;
     if (!this.targets.length) this.collectTargets();
     for (const t of this.targets) {
       const e = layout[t.desc.id];
