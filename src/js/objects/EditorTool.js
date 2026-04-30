@@ -47,6 +47,8 @@ export default class EditorTool {
       '<button id="ed-save" style="display:block;width:100%;padding:7px 10px;margin-bottom:6px;background:#4FA8E0;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сохранить положения</button>' +
       '<button id="ed-reset" style="display:block;width:100%;padding:7px 10px;background:#999;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сбросить → Reload</button>' +
       '<div id="ed-status" style="margin-top:8px;font-size:11px;color:#444;line-height:1.35;"></div>' +
+      '<textarea id="ed-dump" readonly style="display:none;width:100%;height:140px;margin-top:8px;font:11px monospace;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;resize:vertical;"></textarea>' +
+      '<button id="ed-copy" style="display:none;width:100%;padding:6px 10px;margin-top:6px;background:#7561C8;color:#fff;border:none;border-radius:5px;cursor:pointer;">Скопировать в буфер</button>' +
       "</div>";
     document.body.appendChild(wrap);
 
@@ -57,8 +59,41 @@ export default class EditorTool {
     document.getElementById("ed-mode").onclick = () => this.toggle();
     document.getElementById("ed-save").onclick = () => this.save();
     document.getElementById("ed-reset").onclick = () => this.resetAndReload();
+    document.getElementById("ed-copy").onclick = () => this._copyDump();
 
     this.statusEl = document.getElementById("ed-status");
+    this.dumpEl = document.getElementById("ed-dump");
+    this.copyBtn = document.getElementById("ed-copy");
+  }
+
+  // Многошаговый fallback копирования: navigator.clipboard → execCommand →
+  // (если не вышло) просто оставляем текст выделенным в textarea.
+  _copyDump() {
+    const text = this.dumpEl ? this.dumpEl.value : "";
+    if (!text) return;
+    let ok = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch (e) {}
+    if (!ok) {
+      try {
+        this.dumpEl.focus();
+        this.dumpEl.select();
+        ok = document.execCommand("copy");
+      } catch (e) {}
+    }
+    if (!ok) {
+      // Последний фолбэк — выделим текст, пользователь жмёт Ctrl+C сам.
+      this.dumpEl.focus();
+      this.dumpEl.select();
+      this.statusEl.innerHTML =
+        "Авто-копирование не сработало. Выдели текст и нажми <b>Ctrl+C</b>.";
+      return;
+    }
+    this.statusEl.innerHTML = "Скопировано в буфер обмена ✓";
   }
 
   _listenResize() {
@@ -215,13 +250,21 @@ export default class EditorTool {
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     const pretty = JSON.stringify(data, null, 2);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(pretty).catch(() => {});
-    }
     console.log("[EditorTool] saved layout:\n" + pretty);
+
+    // Показываем JSON в текстовом поле — оттуда можно скопировать кнопкой
+    // или вручную (Ctrl+A → Ctrl+C). Авто-копирование пробуем сразу,
+    // но не падаем если не вышло.
+    if (this.dumpEl) {
+      this.dumpEl.value = pretty;
+      this.dumpEl.style.display = "block";
+    }
+    if (this.copyBtn) this.copyBtn.style.display = "block";
     this.statusEl.innerHTML =
-      "Сохранено в localStorage и буфер обмена.<br>" +
-      "<i>Скинь содержимое буфера в чат — внедрю в проект.</i>";
+      "Сохранено в localStorage. JSON ниже — жми <b>«Скопировать в буфер»</b> или выдели вручную.";
+
+    // Попробуем сразу скопировать (если есть пользовательский жест-контекст).
+    this._copyDump();
   }
 
   resetAndReload() {
