@@ -22,6 +22,7 @@ import { FOOD_EVENTS } from "../../displayObjects/location/food/Food";
 import Cola from "../../displayObjects/location/food/Cola";
 import Smoke from "../../displayObjects/location/Smoke";
 import Tortilla from "../../displayObjects/location/food/Tortilla";
+import EditorTool from "../EditorTool";
 
 const TUTORIAL_DELAY_FOR_NEW_PRODUCT = 2000;
 const SLOT_COUNT = 3;
@@ -161,6 +162,13 @@ export default class PlayableController extends BaseObject {
     // сообщается игроку — счётчик просто накапливает.
     const hud = ObjectLinks.get(OBJECTS.hudPanel);
     if (hud) hud.setTotal(TOTAL_BUYERS);
+
+    // Editor tool: чит-кнопка + перемещение объектов мышью.
+    // Создаётся при старте и применяет сохранённый layout (если есть).
+    if (!window.__rcpEditor) {
+      window.__rcpEditor = new EditorTool();
+    }
+    setTimeout(() => window.__rcpEditor.applyStoredLayout(), 200);
 
     // Все пулы монет летят к HUD-панели и стартуют из тултипа клиента
     // (бабл с заказом). Каждому слоту — свой пул со своим source.
