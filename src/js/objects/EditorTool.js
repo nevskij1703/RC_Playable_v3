@@ -62,6 +62,7 @@ export default class EditorTool {
       '<button id="ed-save" style="display:block;width:100%;padding:7px 10px;margin-bottom:6px;background:#4FA8E0;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сохранить положения</button>' +
       '<button id="ed-reset" style="display:block;width:100%;padding:7px 10px;background:#999;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сбросить → Reload</button>' +
       '<div id="ed-status" style="margin-top:8px;font-size:11px;color:#444;line-height:1.35;"></div>' +
+      '<div id="ed-params" style="display:none;margin-top:10px;border-top:1px solid #ddd;padding-top:8px;max-height:55vh;overflow:auto;"></div>' +
       '<textarea id="ed-dump" readonly style="display:none;width:100%;height:140px;margin-top:8px;font:11px monospace;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;resize:vertical;"></textarea>' +
       '<button id="ed-copy" style="display:none;width:100%;padding:6px 10px;margin-top:6px;background:#7561C8;color:#fff;border:none;border-radius:5px;cursor:pointer;">Скопировать в буфер</button>' +
       "</div>";
@@ -172,75 +173,93 @@ export default class EditorTool {
 
   _enableDrag() {
     const stage = window.application.renderer.stage;
+    this._stageDown = (e) => this._onStageDown(e);
     this._stageMove = (e) => this._onMove(e);
     this._stageUp = () => this._onUp();
     stage.eventMode = "static";
+    // Hit-area на весь экран — ловим pointerdown откуда угодно.
+    stage.hitArea = new PIXI.Rectangle(-10000, -10000, 20000, 20000);
+    stage.on("pointerdown", this._stageDown);
     stage.on("globalpointermove", this._stageMove);
     stage.on("pointerup", this._stageUp);
     stage.on("pointerupoutside", this._stageUp);
 
-    this._handlers = [];
+    // Подсветка для каждого таргета — видно, что доступно для перемещения.
     this._outlines = [];
     for (const t of this.targets) {
       const v = t.obj.view;
-      v.eventMode = "static";
-      v.cursor = "move";
-
-      // Щедрый hitArea: bounds от getLocalBounds + 20% паддинг,
-      // или generous fallback для скрытых/пустых контейнеров и spine
-      // у которых getLocalBounds может вернуть мусор.
+      const isCharacter = !!t.desc.child;
+      const outline = new PIXI.Graphics();
+      outline.lineStyle(2, isCharacter ? 0xff8a4d : 0x4fa8e0, 0.9);
+      // Рамка по getLocalBounds или generous fallback.
       const b = v.getLocalBounds && v.getLocalBounds();
-      const isCharacter = !!t.desc.child; // spine-персонаж
+      let rx, ry, rw, rh;
       if (b && b.width > 8 && b.height > 8) {
         const padX = b.width * 0.15;
         const padY = b.height * 0.15;
-        v.hitArea = new PIXI.Rectangle(
-          b.x - padX,
-          b.y - padY,
-          b.width + 2 * padX,
-          b.height + 2 * padY
-        );
+        rx = b.x - padX;
+        ry = b.y - padY;
+        rw = b.width + 2 * padX;
+        rh = b.height + 2 * padY;
       } else if (isCharacter) {
-        // Большая зона для спайн-персонажей: feet=0, голова сверху.
-        v.hitArea = new PIXI.Rectangle(-150, -350, 300, 400);
+        rx = -150;
+        ry = -350;
+        rw = 300;
+        rh = 400;
       } else {
-        v.hitArea = new PIXI.Rectangle(-90, -120, 180, 240);
+        rx = -90;
+        ry = -120;
+        rw = 180;
+        rh = 240;
       }
-
-      // Полупрозрачная рамка-подсветка вокруг hitArea — видно, куда тыкать.
-      const outline = new PIXI.Graphics();
-      outline.lineStyle(2, isCharacter ? 0xff8a4d : 0x4fa8e0, 0.85);
-      const r = v.hitArea;
-      outline.drawRoundedRect(r.x, r.y, r.width, r.height, 8);
+      outline.drawRoundedRect(rx, ry, rw, rh, 8);
       outline.eventMode = "none";
       v.addChild(outline);
-      this._outlines.push({ v, outline });
-
-      const fn = (e) => this._onDown(t, e);
-      v.on("pointerdown", fn);
-      this._handlers.push({ v, fn });
+      this._outlines.push({ t, outline });
     }
 
     this._wheelFn = (e) => this._onWheel(e);
     document.addEventListener("wheel", this._wheelFn, { passive: false });
+
+    // Блок параметров с полями ввода.
+    this._buildParamsBlock();
+  }
+
+  // Stage-level pointerdown: ищет ближайший таргет к точке клика
+  // (в global stage coords). Не зависит от eventMode/hitArea отдельных
+  // объектов — ловит persons и spine надёжно.
+  _onStageDown(e) {
+    const gx = e.global.x;
+    const gy = e.global.y;
+    let best = null;
+    let bestDist = Infinity;
+    for (const t of this.targets) {
+      const v = t.obj.view;
+      if (!v || !v.parent) continue;
+      const gp = v.getGlobalPosition();
+      const dx = gp.x - gx;
+      const dy = gp.y - gy;
+      const d = Math.hypot(dx, dy);
+      if (d < bestDist) {
+        bestDist = d;
+        best = t;
+      }
+    }
+    if (!best || bestDist > 350) return;
+    this._onDown(best, e);
   }
 
   _disableDrag() {
     const stage = window.application.renderer.stage;
     if (this._stageMove) {
+      stage.off("pointerdown", this._stageDown);
       stage.off("globalpointermove", this._stageMove);
       stage.off("pointerup", this._stageUp);
       stage.off("pointerupoutside", this._stageUp);
-      this._stageMove = this._stageUp = null;
-    }
-    if (this._handlers) {
-      for (const { v, fn } of this._handlers) {
-        v.off("pointerdown", fn);
-      }
-      this._handlers = null;
+      this._stageDown = this._stageMove = this._stageUp = null;
     }
     if (this._outlines) {
-      for (const { v, outline } of this._outlines) {
+      for (const { outline } of this._outlines) {
         if (outline.parent) outline.parent.removeChild(outline);
         outline.destroy && outline.destroy();
       }
@@ -250,7 +269,68 @@ export default class EditorTool {
       document.removeEventListener("wheel", this._wheelFn);
       this._wheelFn = null;
     }
+    const params = document.getElementById("ed-params");
+    if (params) params.style.display = "none";
     this.dragging = null;
+  }
+
+  // ---------- Блок параметров (числовые поля для каждого таргета) ----------
+
+  _buildParamsBlock() {
+    if (!this.targets.length) this.collectTargets();
+    const wrap = document.getElementById("ed-params");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    const inputStyle =
+      "width:54px;padding:2px 4px;font:11px monospace;border:1px solid #ccc;border-radius:3px;";
+    for (const t of this.targets) {
+      const row = document.createElement("div");
+      row.style.cssText =
+        "display:flex;align-items:center;gap:3px;margin-bottom:4px;font-size:10px;";
+      row.innerHTML =
+        `<span style="width:90px;font-weight:700;color:#333;">${t.desc.id}</span>` +
+        `<span>X</span><input data-id="${t.desc.id}" data-prop="x" type="number" step="1" style="${inputStyle}">` +
+        `<span>Y</span><input data-id="${t.desc.id}" data-prop="y" type="number" step="1" style="${inputStyle}">` +
+        `<span>S</span><input data-id="${t.desc.id}" data-prop="s" type="number" step="0.01" style="${inputStyle}">`;
+      wrap.appendChild(row);
+    }
+    wrap.querySelectorAll("input").forEach((inp) => {
+      inp.oninput = () => this._onInputChange(inp);
+    });
+    this._refreshParamsBlock();
+    wrap.style.display = "block";
+  }
+
+  _refreshParamsBlock() {
+    const wrap = document.getElementById("ed-params");
+    if (!wrap || wrap.style.display === "none") return;
+    wrap.querySelectorAll("input").forEach((inp) => {
+      if (document.activeElement === inp) return; // не перезаписывать набираемое
+      const t = this.targets.find((x) => x.desc.id === inp.dataset.id);
+      if (!t) return;
+      const v = t.obj.view;
+      if (!v) return;
+      if (inp.dataset.prop === "x") inp.value = Math.round(v.position.x);
+      else if (inp.dataset.prop === "y") inp.value = Math.round(v.position.y);
+      else if (inp.dataset.prop === "s") inp.value = +v.scale.x.toFixed(3);
+    });
+  }
+
+  _onInputChange(inp) {
+    const t = this.targets.find((x) => x.desc.id === inp.dataset.id);
+    if (!t) return;
+    const v = t.obj.view;
+    if (!v) return;
+    const val = parseFloat(inp.value);
+    if (isNaN(val)) return;
+    if (inp.dataset.prop === "x") v.position.x = val;
+    else if (inp.dataset.prop === "y") v.position.y = val;
+    else if (inp.dataset.prop === "s") {
+      v.scale.x = val;
+      v.scale.y = val;
+    }
+    this.selected = t;
+    this._showSelected();
   }
 
   _onDown(t, e) {
@@ -282,6 +362,7 @@ export default class EditorTool {
     v.position.x = local.x - this.dragOffset.x;
     v.position.y = local.y - this.dragOffset.y;
     this._showSelected();
+    this._refreshParamsBlock();
   }
 
   _onUp() {
@@ -297,6 +378,7 @@ export default class EditorTool {
     v.scale.x = Math.max(0.1, Math.min(5, v.scale.x * k));
     v.scale.y = Math.max(0.1, Math.min(5, v.scale.y * k));
     this._showSelected();
+    this._refreshParamsBlock();
   }
 
   _showSelected() {
