@@ -180,17 +180,42 @@ export default class EditorTool {
     stage.on("pointerupoutside", this._stageUp);
 
     this._handlers = [];
+    this._outlines = [];
     for (const t of this.targets) {
       const v = t.obj.view;
       v.eventMode = "static";
       v.cursor = "move";
-      // Расширенный hitArea — для пустых контейнеров и spine.
+
+      // Щедрый hitArea: bounds от getLocalBounds + 20% паддинг,
+      // или generous fallback для скрытых/пустых контейнеров и spine
+      // у которых getLocalBounds может вернуть мусор.
       const b = v.getLocalBounds && v.getLocalBounds();
-      if (b && b.width > 4 && b.height > 4) {
-        v.hitArea = new PIXI.Rectangle(b.x, b.y, b.width, b.height);
+      const isCharacter = !!t.desc.child; // spine-персонаж
+      if (b && b.width > 8 && b.height > 8) {
+        const padX = b.width * 0.15;
+        const padY = b.height * 0.15;
+        v.hitArea = new PIXI.Rectangle(
+          b.x - padX,
+          b.y - padY,
+          b.width + 2 * padX,
+          b.height + 2 * padY
+        );
+      } else if (isCharacter) {
+        // Большая зона для спайн-персонажей: feet=0, голова сверху.
+        v.hitArea = new PIXI.Rectangle(-150, -350, 300, 400);
       } else {
         v.hitArea = new PIXI.Rectangle(-90, -120, 180, 240);
       }
+
+      // Полупрозрачная рамка-подсветка вокруг hitArea — видно, куда тыкать.
+      const outline = new PIXI.Graphics();
+      outline.lineStyle(2, isCharacter ? 0xff8a4d : 0x4fa8e0, 0.85);
+      const r = v.hitArea;
+      outline.drawRoundedRect(r.x, r.y, r.width, r.height, 8);
+      outline.eventMode = "none";
+      v.addChild(outline);
+      this._outlines.push({ v, outline });
+
       const fn = (e) => this._onDown(t, e);
       v.on("pointerdown", fn);
       this._handlers.push({ v, fn });
@@ -214,6 +239,13 @@ export default class EditorTool {
       }
       this._handlers = null;
     }
+    if (this._outlines) {
+      for (const { v, outline } of this._outlines) {
+        if (outline.parent) outline.parent.removeChild(outline);
+        outline.destroy && outline.destroy();
+      }
+      this._outlines = null;
+    }
     if (this._wheelFn) {
       document.removeEventListener("wheel", this._wheelFn);
       this._wheelFn = null;
@@ -226,6 +258,17 @@ export default class EditorTool {
     this.dragging = t;
     this.selected = t;
     const v = t.obj.view;
+    // Стопаем активные анимации move-* на target — иначе они борются за
+    // view.position и драг отскакивает.
+    const anims = t.obj.animations || {};
+    Object.keys(anims).forEach((k) => {
+      const a = anims[k];
+      if (a && a.stop && a.isActive) {
+        try {
+          a.stop();
+        } catch (e) {}
+      }
+    });
     const local = v.parent.toLocal(e.global);
     this.dragOffset.x = local.x - v.position.x;
     this.dragOffset.y = local.y - v.position.y;
