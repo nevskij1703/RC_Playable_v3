@@ -81,6 +81,8 @@ export const OBJECTS = {
 
   crossPopup: "crossPopup",
 
+  hudPanel: "hudPanel",
+
   tutorialFinger: "tutorialFinger",
   ui: "ui"
 };

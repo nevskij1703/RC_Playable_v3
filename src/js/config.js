@@ -15,6 +15,7 @@ import {
 } from "PlayableAdsEngine";
 import { OBJECTS } from "./const";
 import Location from "./displayObjects/location/Location";
+import HudPanel from "./displayObjects/ui/HudPanel";
 import PlayableController from "./objects/v1/PlayableController";
 export default {
   children: [
@@ -22,8 +23,12 @@ export default {
 
     {
       class: MainContainer,
-      position: { absolute: true, centered: true, x: 0, y: 28 },
-      position_portrait: { absolute: true, centered: true, x: 0, y: 0 },
+      // Сдвигаем сцену немного вниз, чтобы тултипы клиентов не лезли на
+      // верхнюю HUD-панель и помещались на маленьких экранах.
+      position: { absolute: true, centered: true, x: 0, y: 60 },
+      position_portrait: { absolute: true, centered: true, x: 0, y: 50 },
+      scale: { x: 0.92, y: 0.92 },
+      scale_portrait: { x: 1, y: 1 },
       children: [
         {
           linkID: OBJECTS.location,
@@ -43,6 +48,20 @@ export default {
           linkID: OBJECTS.tutorialFinger,
           class: TutorialFinger,
           scale: { x: 0.5, y: 0.5 },
+        },
+
+        // Верхняя HUD-панель: монеты слева, обслуженные клиенты справа.
+        {
+          linkID: OBJECTS.hudPanel,
+          class: HudPanel,
+          adaptivePosition: true,
+          position: { absolute: true, align: { x: 0.5, y: 0 }, x: 0, y: 40 },
+          position_portrait: {
+            absolute: true,
+            align: { x: 0.5, y: 0 },
+            x: 0,
+            y: 56,
+          },
         },
 
         // Всплывающий красный крест в точке тапа при невалидном действии

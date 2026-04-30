@@ -31,6 +31,24 @@ const SPAWN_DELAY_MS = 600;
 const SLOT_CHARACTERS = ["italian_man", "pretty_woman", "old_grambler"];
 const SLOT_TOOLTIPS = [OBJECTS.tooltip1, OBJECTS.tooltip2, OBJECTS.tooltip3];
 
+// Цены ингредиентов: лепёшка автоматически добавляется к каждому шаверма-блюду.
+const PRICES = {
+  tortilla: 3,
+  meat: 5,
+  tomato: 2,
+  fry: 3,
+  cucumbers: 4,
+  cola: 5,
+};
+
+function dishPrice(dish) {
+  if (dish.cola) return PRICES.cola;
+  // shaverma: tortilla (база) + сумма ингредиентов
+  let sum = PRICES.tortilla;
+  for (const p of dish.products) sum += PRICES[p] || 0;
+  return sum;
+}
+
 // Меню: 4 шавермы + кола. Все блюда в единственном экземпляре в заказе
 // (никаких stack'ов). У клиента в order может быть до 3 таких блюд.
 export const DISH_TEMPLATES = [
@@ -132,35 +150,55 @@ export default class PlayableController extends BaseObject {
     this.totalSpawned = 0;
     this.spawningSlots = new Set();
 
+    // Пре-генерируем заказы для всех TOTAL_BUYERS чтобы заранее знать
+    // суммарную стоимость уровня (maxCoins). spawnBuyerInSlot будет брать
+    // из этой очереди по индексу this.totalSpawned.
+    this.preGeneratedOrders = [];
+    let levelMaxCoins = 0;
+    for (let i = 0; i < TOTAL_BUYERS; i++) {
+      const dishes = this.generateRandomOrder();
+      this.preGeneratedOrders.push(dishes);
+      for (const d of dishes) levelMaxCoins += dishPrice(d);
+    }
+    this.levelMaxCoins = levelMaxCoins;
+
+    // HUD-панель сверху: maxCoins + total clients проставляются сейчас.
+    const hud = ObjectLinks.get(OBJECTS.hudPanel);
+    if (hud) {
+      hud.setMaxCoins(levelMaxCoins);
+      hud.setTotal(TOTAL_BUYERS);
+    }
+
+    // Все пулы монет летят к HUD-панели (а не к коинам у клиентов).
     ParticleEmitter.createPools({
       startSize: 100,
       poolAdditionalSize: 25,
       coin1: {
         class: Particle,
         image: "ui/coin_reward",
-        flyTime: 350,
+        flyTime: 500,
         container: OBJECTS.coins,
         source: OBJECTS.coins,
         p1: OBJECTS.p1,
-        destination: OBJECTS.coinsFinish1,
+        destination: OBJECTS.hudPanel,
       },
       coin2: {
         class: Particle,
         image: "ui/coin_reward",
-        flyTime: 350,
+        flyTime: 500,
         container: OBJECTS.coins,
         source: OBJECTS.coins,
         p1: OBJECTS.p2,
-        destination: OBJECTS.coinsFinish2,
+        destination: OBJECTS.hudPanel,
       },
       coin3: {
         class: Particle,
         image: "ui/coin_reward",
-        flyTime: 350,
+        flyTime: 500,
         container: OBJECTS.coins,
         source: OBJECTS.coins,
         p1: OBJECTS.p3,
-        destination: OBJECTS.coinsFinish3,
+        destination: OBJECTS.hudPanel,
       },
       smoke: {
         class: Smoke,
@@ -205,7 +243,10 @@ export default class PlayableController extends BaseObject {
     const characterName = SLOT_CHARACTERS[slotIndex];
     const character = this.buyersContainer[characterName];
     const tooltip = ObjectLinks.get(SLOT_TOOLTIPS[slotIndex]);
-    const dishes = this.generateRandomOrder();
+    // Берём заранее сгенерированный заказ (см. setupComponents).
+    const dishes =
+      (this.preGeneratedOrders && this.preGeneratedOrders[this.totalSpawned]) ||
+      this.generateRandomOrder();
 
     tooltip.resetForReuse();
     tooltip.updateIcons(0);
@@ -783,7 +824,7 @@ export default class PlayableController extends BaseObject {
     }
   }
 
-  emitCoinsForSlot(slotIndex) {
+  emitCoinsForSlot(slotIndex, buyer) {
     const particleNames = ["coin1", "coin2", "coin3"];
     const name = particleNames[slotIndex] || "coin1";
     if (window.application && window.application.sound) {
@@ -801,6 +842,18 @@ export default class PlayableController extends BaseObject {
       }
       if (++count >= total) clearInterval(interval);
     }, 50);
+
+    // HUD: считаем стоимость заказа клиента и тикаем счётчики.
+    // Плановая задержка ≈ flyTime монет, чтобы цифры росли «вместе с прилётом».
+    const hud = ObjectLinks.get(OBJECTS.hudPanel);
+    if (hud && buyer) {
+      let sum = 0;
+      for (const d of buyer.dishes) sum += dishPrice(d);
+      setTimeout(() => {
+        hud.addCoins(sum);
+        hud.addClient();
+      }, 380);
+    }
   }
 
   // Вызывается после прилёта блюда/колы.
@@ -808,7 +861,7 @@ export default class PlayableController extends BaseObject {
   onDeliveryComplete(buyer) {
     if (!buyer) return;
     if (buyer.dishes.every((d) => d.complete)) {
-      this.emitCoinsForSlot(buyer.slotIndex);
+      this.emitCoinsForSlot(buyer.slotIndex, buyer);
       // Последний клиент игры → переход в стор.
       if (
         !this.hasMoreBuyers() &&
