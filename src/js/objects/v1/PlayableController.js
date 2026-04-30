@@ -253,6 +253,11 @@ export default class PlayableController extends BaseObject {
     this.totalSpawned++;
 
     this.animateCharacterIn(buyer, isInitial);
+
+    // Состав открытых заказов изменился — пересчитать кликабельность
+    // ингредиентов (новый клиент мог разблокировать какой-то топинг).
+    this.updateProductsInteractive();
+    this.updateTortillaInteractive();
   }
 
   animateCharacterIn(buyer, isInitial) {
@@ -312,6 +317,10 @@ export default class PlayableController extends BaseObject {
 
       tooltip.hide();
     }, 800);
+
+    // Сразу после ухода — пересчёт интерактивов: возможно, какой-то топинг
+    // больше не нужен и должен быть locked.
+    this.updateProductsInteractive();
 
     setTimeout(() => {
       this.spawnBuyerInSlot(slotIndex, false);
