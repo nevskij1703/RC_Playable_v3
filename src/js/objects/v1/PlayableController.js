@@ -424,6 +424,18 @@ export default class PlayableController extends BaseObject {
     return this.canAddProductToAnyDish(topping);
   }
 
+  // Тарелка ещё «в работе»: её текущие ингредиенты — подмножество какого-то
+  // открытого заказа, т.е. её можно достроить добавлением топингов.
+  // Если visibleIngredients пуст (только pita), считаем тарелку "in-progress".
+  isDishStillBuildable(dish) {
+    const ings = this.visibleIngredients(dish);
+    if (!ings.length) return true;
+    const open = this.openMealBuyerDishes();
+    return open.some(({ buyerDish }) =>
+      ings.every((i) => buyerDish.products.includes(i))
+    );
+  }
+
   // Cola разрешена, если суммарный in-progress (т.е. одновременно «летящих»
   // — но в нашей схеме cola улетает мгновенно, поэтому достаточно проверки
   // demand>0). Просто: есть ли клиент с открытой колой.
@@ -1006,22 +1018,42 @@ export default class PlayableController extends BaseObject {
               Rewards.call("updateProductsInteractive"),
               () => this.updateTutorial(),
             ]),
-            Rewards.startScenario([
-              // Нет клиента под этот dish — это «застрявшая» сборка. Чтобы не
-              // блокировать кухню, очищаем тарелку и возвращаем её в пул.
-              Rewards.withArgs(
-                (dish) => dish,
-                Rewards.call("showCrossAtFood")
-              ),
-              Rewards.withArgs((dish) => dish, Rewards.call("setDishEmpty")),
-              Rewards.withArgs(
-                (dish) => dish,
-                Rewards.call("removeDishFromCurrent")
-              ),
-              Rewards.call("updateTortillaInteractive"),
-              Rewards.call("updateProductsInteractive"),
-              () => this.updateTutorial(),
-            ])
+            Rewards.if(
+              (dish) => this.isDishStillBuildable(dish),
+              // «Недостроенная» тарелка — её ингредиенты ещё подмножество
+              // какого-то открытого заказа. Не очищаем: только баунс +
+              // красный крестик, чтобы игрок понял "ещё не готово".
+              Rewards.startScenario([
+                Rewards.withArgs(
+                  (dish) => dish,
+                  Rewards.call("showCrossAtFood")
+                ),
+                Rewards.onTarget(
+                  (dish) => dish,
+                  Rewards.startScenarioInstant("bounce")
+                ),
+                Rewards.onTarget(
+                  (dish) => dish,
+                  Rewards.call("updateInteractive", "dynamic")
+                ),
+              ]),
+              // «Застрявшая» сборка — никто не сможет принять её.
+              // Очищаем и возвращаем slot в пул.
+              Rewards.startScenario([
+                Rewards.withArgs(
+                  (dish) => dish,
+                  Rewards.call("showCrossAtFood")
+                ),
+                Rewards.withArgs((dish) => dish, Rewards.call("setDishEmpty")),
+                Rewards.withArgs(
+                  (dish) => dish,
+                  Rewards.call("removeDishFromCurrent")
+                ),
+                Rewards.call("updateTortillaInteractive"),
+                Rewards.call("updateProductsInteractive"),
+                () => this.updateTutorial(),
+              ])
+            )
           ),
         ],
 
