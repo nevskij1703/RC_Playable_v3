@@ -72,9 +72,11 @@ export default class HudPanel extends Container {
     if (!bounds || bounds.height < 50) return;
     if (bounds.y <= 8) return;
     const halfPanel = (PANEL_H / 2 + 4) * v.scale.y;
-    const hudTopWorldY = v.worldTransform.ty - halfPanel;
-    if (hudTopWorldY >= bounds.y - 4) return;
-    const desiredWorldY = bounds.y + 5 + halfPanel;
+    // Snap HUD top to the very top edge of the background image, regardless
+    // of where engine's adaptivePosition put it. Without snapping in both
+    // directions, on portrait-clamped aspects the panel can sit too low —
+    // visibly detached from the bg border the user expects it to hug.
+    const desiredWorldY = bounds.y + halfPanel;
     const local = v.parent.toLocal({ x: 0, y: desiredWorldY });
     v.position.y = local.y;
   }
