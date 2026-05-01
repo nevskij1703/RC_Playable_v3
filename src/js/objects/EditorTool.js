@@ -146,6 +146,16 @@ function migrate(stored) {
     const newKey = OLD_TO_NEW[k];
     if (newKey && !out[newKey]) out[newKey] = stored[k];
   }
+  // HUD якорится к ВЕРХУ канваса (align(0.5, 0)) — y из топ-якоря должен
+  // быть positive (offset вниз от верха). Старые сохранения от raw
+  // view.position могли затечь сюда с большими отрицательными значениями
+  // (-300..-600). Чистим, чтобы fallback на DEFAULT_LAYOUT отрабатывал.
+  for (const bk of Object.keys(out)) {
+    const e = out[bk] && out[bk].hudPanel;
+    if (e && typeof e.y === "number" && (e.y < -50 || e.y > 300)) {
+      delete out[bk].hudPanel;
+    }
+  }
   return out;
 }
 
@@ -857,9 +867,14 @@ export default class EditorTool {
       const v = t.obj.view;
       if (!v) continue;
       if (t.desc.topAnchor) {
-        // saved.x/y трактуем как engine's config.position offsets для
-        // absolute+align (top-center). Пишем в config и зовём applyPosition()
-        // — engine сам корректно считает с учётом stage rotation в landscape.
+        // saved.x/y — offsets от align(0.5, 0) (top-center) канваса.
+        // Пишем в config (для анимаций / engine resize handlers) и зовём
+        // applyPosition() — если engine'овская обёртка её поддерживает,
+        // она пересчитает позицию с учётом текущей ориентации. Иначе
+        // (для legacy/wrapped объектов) fallback вычисляет напрямую через
+        // alignLocal. Y-фильтр в migrate() режет отрицательные/слишком
+        // большие значения — это ловит контаминированные сохранения
+        // из старого pre-topAnchor кода (raw view.position).
         const tcfg = t.obj.config || {};
         if (tcfg.position) {
           tcfg.position.x = e.x;
@@ -872,7 +887,6 @@ export default class EditorTool {
         if (typeof t.obj.applyPosition === "function") {
           t.obj.applyPosition();
         } else {
-          // Fallback: ручная математика через alignLocal.
           const off = getAlignLocal(v, 0.5, 0);
           if (off) {
             v.position.x = e.x + off.x;
