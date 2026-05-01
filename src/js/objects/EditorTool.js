@@ -16,6 +16,7 @@ const ALL_BUCKETS = [...LANDSCAPE_BUCKETS, ...PORTRAIT_BUCKETS];
 // имеет приоритет: его правки override-ят эти значения.
 // Старые ключи "landscape"/"portrait" мигрируем в "default"/"portrait".
 const DEFAULT_LAYOUT = {
+  // Portrait, ratio < 2.15 (вертикальные экраны вообще)
   portrait: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
@@ -25,6 +26,17 @@ const DEFAULT_LAYOUT = {
     tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
     hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
   },
+  // Portrait + 4:3 / iPad-podобные узкие пропорции (1.32 ≤ ratio < 1.49)
+  portrait_mn: {
+    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 80, y: 114, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: 73, y: -506, scaleX: 0.935, scaleY: 0.935 },
+    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
+    hudPanel: { x: -4, y: -374, scaleX: 1.34, scaleY: 1.34 },
+  },
+  // Landscape (default), сверхширокие экраны ratio ≥ 2.15
   default: {
     italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
@@ -33,6 +45,16 @@ const DEFAULT_LAYOUT = {
     tooltip2: { x: -86, y: -438, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 130, y: -440, scaleX: 0.85, scaleY: 0.85 },
     hudPanel: { x: 0, y: -280, scaleX: 1, scaleY: 1 },
+  },
+  // Landscape + 4:3 / почти квадратный экран (1.32 ≤ ratio < 1.49)
+  mn: {
+    italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: -310, y: -440, scaleX: 0.85, scaleY: 0.85 },
+    tooltip2: { x: -86, y: -438, scaleX: 0.85, scaleY: 0.85 },
+    tooltip3: { x: 130, y: -440, scaleX: 0.85, scaleY: 0.85 },
+    hudPanel: { x: -21, y: -282, scaleX: 1, scaleY: 1 },
   },
 };
 
