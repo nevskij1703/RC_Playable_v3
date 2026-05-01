@@ -191,6 +191,7 @@ export default class EditorTool {
     this.selected = null;
     this.dragOffset = { x: 0, y: 0 };
     this.targets = [];
+    this._setupAspectClamp();
     this._buildUI();
     this._listenResize();
   }
@@ -198,6 +199,63 @@ export default class EditorTool {
   _orientation() {
     const r = window.application && window.application.renderer;
     return r && r.isPortrait ? "portrait" : "landscape";
+  }
+
+  // Зажимаем пропорции экрана дизайнерским ratio (1500/640 ≈ 2.34). На
+  // более вытянутых вьюпортах (например, длинные узкие телефоны) лишнее
+  // пространство body становится чёрными полосами вокруг канваса; UI и
+  // bubbles больше не уезжают в пустоту.
+  _setupAspectClamp() {
+    const app = window.application;
+    if (!app || app._aspectClampApplied) return;
+    app._aspectClampApplied = true;
+    const DESIGN_RATIO = 1500 / 640; // engine size config
+
+    Object.defineProperty(app, "screenSize", {
+      configurable: true,
+      get() {
+        const w = document.body.clientWidth;
+        const h = document.body.clientHeight;
+        let cw = w;
+        let ch = h;
+        if (h > w) {
+          ch = Math.min(h, w * DESIGN_RATIO); // portrait clamp height
+        } else {
+          cw = Math.min(w, h * DESIGN_RATIO); // landscape clamp width
+        }
+        return { width: cw, height: ch };
+      },
+    });
+
+    document.body.style.background = "#000";
+    document.body.style.margin = "0";
+    document.body.style.overflow = "hidden";
+
+    // Engine ставит canvas.style.left/top по своим расчётам с clamped
+    // screenSize, но фактический body может быть больше — рецентрируем.
+    const recenter = () => {
+      const view = app.renderer && app.renderer.view;
+      if (!view) return;
+      const bw = document.body.clientWidth;
+      const bh = document.body.clientHeight;
+      const cw = parseFloat(view.style.width) || view.width;
+      const ch = parseFloat(view.style.height) || view.height;
+      view.style.position = "absolute";
+      view.style.left = Math.max(0, (bw - cw) / 2) + "px";
+      view.style.top = Math.max(0, (bh - ch) / 2) + "px";
+    };
+    if (app.eventEmitter) {
+      app.eventEmitter.on(APPLICATION_EVENTS.playableResize, () =>
+        setTimeout(recenter, 80)
+      );
+    }
+    setTimeout(recenter, 120);
+    // Запускаем resize, чтобы engine пересчитал layout с clamped размерами.
+    setTimeout(() => {
+      try {
+        app.onResize(app.screenSize);
+      } catch (e) {}
+    }, 60);
   }
 
   // В какой букет писать save() — либо явно выбранный в селекторе, либо
