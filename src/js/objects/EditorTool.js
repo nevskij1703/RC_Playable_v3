@@ -3,64 +3,28 @@ import { OBJECTS } from "../const";
 
 const STORAGE_KEY = "rcp_editor_layout_v1";
 
-// Движок раскладки имеет 8 ratio-buckets для каждой ориентации
-// (см. window.RATIO в Application.js и BaseViewObject.detectPositionName).
-// Порядок iteration важен — он совпадает с порядком в Application.js.
-const RATIO_KEYS = ["xlg", "lg", "md", "sm", "xsm", "mn", "emn"];
-const LANDSCAPE_BUCKETS = ["default", ...RATIO_KEYS];
-const PORTRAIT_BUCKETS = ["portrait", ...RATIO_KEYS.map((k) => "portrait_" + k)];
-const ALL_BUCKETS = [...LANDSCAPE_BUCKETS, ...PORTRAIT_BUCKETS];
+// Упрощённая bucket-схема: 6 экран-вариантов вместо 16 движковых.
+// Определяются по getLandscapeRatio (= max/min, всегда ≥ 1) + isPortrait.
+//   ultraWide  — горизонтальный 21:9 и шире (lr ≥ 2.0, !portrait)
+//   desktop    — горизонтальный классический (1.18 ≤ lr < 2.0, !portrait)
+//   square     — почти квадратный (lr < 1.18, любая ориентация)
+//   tablet     — вертикальный 3:4 (1.18 ≤ lr < 1.55, portrait)
+//   phone      — вертикальный 9:16 (1.55 ≤ lr < 1.95, portrait)
+//   ultraTall  — вертикальный 9:21 и уже (lr ≥ 1.95, portrait)
+const BUCKETS = ["ultraWide", "desktop", "square", "tablet", "phone", "ultraTall"];
+const HORIZONTAL_BUCKETS = ["ultraWide", "desktop"];
+const PORTRAIT_BUCKETS = ["tablet", "phone", "ultraTall"];
+function isPortraitBucket(b) {
+  return PORTRAIT_BUCKETS.indexOf(b) !== -1;
+}
 
 // Дефолтный layout — встраивается в код, применяется на чистой сборке
-// (без localStorage). Получен из in-game редактора. localStorage юзера
-// имеет приоритет: его правки override-ят эти значения.
-// Старые ключи "landscape"/"portrait" мигрируем в "default"/"portrait".
+// (без localStorage). localStorage юзера имеет приоритет: его правки
+// override-ят эти значения. Старые 16-bucket ключи мигрируются в 6 при
+// чтении (см. migrate ниже).
 const DEFAULT_LAYOUT = {
-  // ========== PORTRAIT (длинная сторона = высота) ==========
-  // base — fallback для всех вертикальных без точного соответствия
-  portrait: {
-    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 140, y: 107, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: 124, y: -502, scaleX: 0.935, scaleY: 0.935 },
-    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
-    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
-  },
-  // 1.99 ≤ ratio < 2.15
-  portrait_xlg: {
-    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 134, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: 127, y: -506, scaleX: 0.935, scaleY: 0.935 },
-    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
-    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
-  },
-  // 1.76 ≤ ratio < 1.99
-  portrait_lg: {
-    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -140, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 125, y: 111, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: 134, y: -484, scaleX: 0.842, scaleY: 0.842 },
-    tooltip2: { x: -338, y: -487, scaleX: 0.837, scaleY: 0.837 },
-    tooltip3: { x: -115, y: -486, scaleX: 0.844, scaleY: 0.844 },
-    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
-  },
-  // 1.32 ≤ ratio < 1.49 — узкий iPad-portrait
-  portrait_mn: {
-    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -125, y: 118, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 124, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: 120, y: -504, scaleX: 0.935, scaleY: 0.935 },
-    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
-    hudPanel: { x: -4, y: -374, scaleX: 1.34, scaleY: 1.34 },
-  },
-
-  // ========== LANDSCAPE (длинная сторона = ширина) ==========
-  // base — ratio ≥ 2.15 (сверхширокий)
-  default: {
+  // 21:9 и шире — сверхширокий горизонтальный
+  ultraWide: {
     italian_man: { x: -339, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
@@ -69,18 +33,8 @@ const DEFAULT_LAYOUT = {
     tooltip3: { x: 153, y: -410, scaleX: 0.691, scaleY: 0.691 },
     hudPanel: { x: 0, y: -280, scaleX: 1, scaleY: 1 },
   },
-  // 1.99 ≤ ratio < 2.15
-  xlg: {
-    italian_man: { x: -353, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -305, y: -410, scaleX: 0.691, scaleY: 0.691 },
-    tooltip2: { x: -87, y: -409, scaleX: 0.692, scaleY: 0.692 },
-    tooltip3: { x: 160, y: -409, scaleX: 0.658, scaleY: 0.658 },
-    hudPanel: { x: 0, y: -280, scaleX: 1, scaleY: 1 },
-  },
-  // 1.76 ≤ ratio < 1.99
-  lg: {
+  // Классический горизонтальный десктоп (16:9, 16:10, 5:3, 3:2)
+  desktop: {
     italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
@@ -89,38 +43,8 @@ const DEFAULT_LAYOUT = {
     tooltip3: { x: 157, y: -409, scaleX: 0.691, scaleY: 0.691 },
     hudPanel: { x: 0, y: -280, scaleX: 0.993, scaleY: 0.993 },
   },
-  // 1.65 ≤ ratio < 1.76
-  md: {
-    italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -285, y: -408, scaleX: 0.625, scaleY: 0.625 },
-    tooltip2: { x: -75, y: -409, scaleX: 0.658, scaleY: 0.658 },
-    tooltip3: { x: 164, y: -408, scaleX: 0.625, scaleY: 0.625 },
-    hudPanel: { x: 0, y: -280, scaleX: 1, scaleY: 1 },
-  },
-  // 1.59 ≤ ratio < 1.65 — 8:5
-  sm: {
-    italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -291, y: -430, scaleX: 0.658, scaleY: 0.658 },
-    tooltip2: { x: -85, y: -432, scaleX: 0.658, scaleY: 0.658 },
-    tooltip3: { x: 156, y: -429, scaleX: 0.658, scaleY: 0.658 },
-    hudPanel: { x: 1, y: -289, scaleX: 0.815, scaleY: 0.815 },
-  },
-  // 1.49 ≤ ratio < 1.59 — 3:2
-  xsm: {
-    italian_man: { x: -353, y: 201, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -305, y: -409, scaleX: 0.658, scaleY: 0.658 },
-    tooltip2: { x: -90, y: -410, scaleX: 0.656, scaleY: 0.656 },
-    tooltip3: { x: 158, y: -409, scaleX: 0.625, scaleY: 0.625 },
-    hudPanel: { x: 12, y: -289, scaleX: 0.815, scaleY: 0.815 },
-  },
-  // 1.32 ≤ ratio < 1.49 — почти квадратный лэндскейп
-  mn: {
+  // Почти квадратный экран (4:3 лэндскейп)
+  square: {
     italian_man: { x: -363, y: 207, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -155, y: 119, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
@@ -129,54 +53,100 @@ const DEFAULT_LAYOUT = {
     tooltip3: { x: 151, y: -412, scaleX: 0.692, scaleY: 0.692 },
     hudPanel: { x: -21, y: -282, scaleX: 1, scaleY: 1 },
   },
+  // 3:4 — вертикальный планшет
+  tablet: {
+    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -125, y: 118, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 124, y: 114, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: 120, y: -504, scaleX: 0.935, scaleY: 0.935 },
+    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
+    hudPanel: { x: -4, y: -374, scaleX: 1.34, scaleY: 1.34 },
+  },
+  // 9:16 — вертикальный телефон
+  phone: {
+    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -140, y: 120, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 125, y: 111, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: 134, y: -484, scaleX: 0.842, scaleY: 0.842 },
+    tooltip2: { x: -338, y: -487, scaleX: 0.837, scaleY: 0.837 },
+    tooltip3: { x: -115, y: -486, scaleX: 0.844, scaleY: 0.844 },
+    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
+  },
+  // 9:21 — сверх-вытянутый вертикальный
+  ultraTall: {
+    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 140, y: 107, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: 124, y: -502, scaleX: 0.935, scaleY: 0.935 },
+    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
+    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
+  },
 };
 
-// Имя букета, которое выбрал бы движок для текущего экрана
-// (в точности повторяет логику BaseViewObject.detectPositionName).
+// Какой из 6 букетов соответствует текущему экрану.
 function detectCurrentBucket() {
   const r = window.application && window.application.renderer;
-  if (!r || !window.RATIO) return "default";
+  if (!r) return "desktop";
   const isPortrait = r.isPortrait;
   const lr = r.getLandscapeRatio;
-  let name = isPortrait ? "portrait" : "default";
-  for (const key of RATIO_KEYS) {
-    const threshold = window.RATIO[key.toUpperCase()];
-    if (lr >= threshold) break;
-    name = (isPortrait ? "portrait_" : "") + key;
-  }
-  return name;
+  if (lr < 1.18) return "square";
+  if (!isPortrait) return lr >= 2.0 ? "ultraWide" : "desktop";
+  if (lr < 1.55) return "tablet";
+  if (lr < 1.95) return "phone";
+  return "ultraTall";
 }
 
-// Какой из существующих в data букетов engine выбрал бы для текущего экрана
-// (cascade: только те, что реально присутствуют). Если ничего не подошло
-// — возвращаем base ("default" или "portrait", с фолбэком на default).
+// Cascade fallback внутри 6 букетов: ищем ближайший по типу.
+const FALLBACK = {
+  ultraWide: ["desktop", "square"],
+  desktop: ["ultraWide", "square"],
+  square: ["desktop", "tablet"],
+  tablet: ["phone", "square", "ultraTall"],
+  phone: ["tablet", "ultraTall", "square"],
+  ultraTall: ["phone", "tablet"],
+};
 function pickBucketFromData(data) {
-  const r = window.application && window.application.renderer;
-  if (!r || !window.RATIO) return data["default"] ? "default" : null;
-  const isPortrait = r.isPortrait;
-  const lr = r.getLandscapeRatio;
-  let name = isPortrait ? "portrait" : "default";
-  for (const key of RATIO_KEYS) {
-    const threshold = window.RATIO[key.toUpperCase()];
-    if (lr >= threshold) break;
-    const candidate = (isPortrait ? "portrait_" : "") + key;
-    if (data[candidate]) name = candidate;
-  }
-  if (!data[name]) {
-    if (isPortrait && data["default"]) return "default";
-    return null;
-  }
-  return name;
+  const cur = detectCurrentBucket();
+  if (data[cur]) return cur;
+  for (const b of FALLBACK[cur] || []) if (data[b]) return b;
+  for (const b of BUCKETS) if (data[b]) return b;
+  return null;
 }
 
-// Миграция старых ключей "landscape"→"default".
+// Миграция старых 16-bucket / "landscape" ключей в 6-bucket.
+const OLD_TO_NEW = {
+  landscape: "desktop",
+  default: "ultraWide",
+  xlg: "ultraWide",
+  lg: "desktop",
+  md: "desktop",
+  sm: "desktop",
+  xsm: "desktop",
+  mn: "square",
+  emn: "square",
+  portrait: "ultraTall",
+  portrait_xlg: "ultraTall",
+  portrait_lg: "phone",
+  portrait_md: "phone",
+  portrait_sm: "phone",
+  portrait_xsm: "tablet",
+  portrait_mn: "tablet",
+  portrait_emn: "tablet",
+};
 function migrate(stored) {
   if (!stored || typeof stored !== "object") return stored || {};
-  if (stored.landscape && !stored.default) {
-    stored.default = stored.landscape;
-    delete stored.landscape;
+  const out = {};
+  for (const k of Object.keys(stored)) {
+    if (BUCKETS.indexOf(k) !== -1) {
+      out[k] = stored[k];
+      continue;
+    }
+    const newKey = OLD_TO_NEW[k];
+    if (newKey && !out[newKey]) out[newKey] = stored[k];
   }
-  return stored;
+  return out;
 }
 
 // Список редактируемых объектов: имя + способ найти baseObject.
@@ -482,44 +452,41 @@ export default class EditorTool {
     if (!wrap) return;
     const live = detectCurrentBucket();
     const writeTo = this._saveBucket();
+    const labels = {
+      ultraWide: "Ultra-wide (21:9+)",
+      desktop: "Desktop (16:9)",
+      square: "Square (~1:1)",
+      tablet: "Tablet (3:4)",
+      phone: "Phone (9:16)",
+      ultraTall: "Ultra-tall (9:21)",
+    };
     const btnCss = (b) => {
       const isLive = b === live;
       const isEdit = b === writeTo;
       const bg = isEdit ? "#7561C8" : isLive ? "#E07A2A" : "#eee";
       const fg = isEdit || isLive ? "#fff" : "#333";
-      return `padding:3px 6px;margin:1px;background:${bg};color:${fg};border:1px solid #bbb;border-radius:3px;cursor:pointer;font:bold 9px monospace;`;
-    };
-    const ratioLabel = (b) => {
-      if (b === "default") return "default · ≥2.15";
-      if (b === "portrait") return "portrait · ≥2.15";
-      const k = (b.replace("portrait_", "")).toUpperCase();
-      const cur = window.RATIO ? window.RATIO[k] : null;
-      return `${b} · <${cur || k}`;
+      return `padding:5px 8px;margin:2px;background:${bg};color:${fg};border:1px solid #bbb;border-radius:4px;cursor:pointer;font:bold 10px Arial,sans-serif;flex:1;min-width:0;`;
     };
     let html = "";
-    html += `<div style="margin-bottom:4px;">Активный экран: <b style="color:#E07A2A;">${live}</b></div>`;
-    html += '<div style="margin-bottom:4px;color:#666;">Сохранять в (клик меняет цель save):</div>';
-    html += '<div><button data-bucket="" style="' +
-      btnCss(this.editingBucket ? "" : "__auto__") +
-      '">авто (по экрану)</button></div>';
-    html += '<div style="margin-top:4px;"><b>Landscape:</b></div>';
-    html += '<div style="display:flex;flex-wrap:wrap;">';
-    for (const b of LANDSCAPE_BUCKETS) {
-      html += `<button data-bucket="${b}" title="${ratioLabel(b)}" style="${btnCss(b)}">${b}</button>`;
+    html += `<div style="margin-bottom:6px;">Активный экран: <b style="color:#E07A2A;">${live}</b> · save → <b style="color:#7561C8;">${writeTo}</b></div>`;
+    html += '<div style="margin-bottom:3px;color:#666;font-size:9px;">Горизонтальные:</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;margin-bottom:4px;">';
+    for (const b of HORIZONTAL_BUCKETS.concat(["square"])) {
+      html += `<button data-bucket="${b}" style="${btnCss(b)}">${labels[b]}</button>`;
     }
     html += "</div>";
-    html += '<div style="margin-top:4px;"><b>Portrait:</b></div>';
+    html += '<div style="margin-bottom:3px;color:#666;font-size:9px;">Вертикальные:</div>';
     html += '<div style="display:flex;flex-wrap:wrap;">';
     for (const b of PORTRAIT_BUCKETS) {
-      const short = b === "portrait" ? "portrait" : b.replace("portrait_", "p_");
-      html += `<button data-bucket="${b}" title="${ratioLabel(b)}" style="${btnCss(b)}">${short}</button>`;
+      html += `<button data-bucket="${b}" style="${btnCss(b)}">${labels[b]}</button>`;
     }
     html += "</div>";
     wrap.innerHTML = html;
     wrap.querySelectorAll("button[data-bucket]").forEach((btn) => {
       btn.onclick = () => {
         const v = btn.dataset.bucket;
-        this.editingBucket = v ? v : null; // "" → авто
+        // Клик по уже-выбранному → сброс в auto. Клик по другому → override.
+        this.editingBucket = this.editingBucket === v ? null : v;
         this._buildBucketSelector();
         this._showSelected();
       };
@@ -584,6 +551,7 @@ export default class EditorTool {
     }
     this.selected = t;
     this._showSelected();
+    this._autoSaveDebounced();
   }
 
   _onDown(t, e) {
@@ -619,7 +587,10 @@ export default class EditorTool {
   }
 
   _onUp() {
-    this.dragging = null;
+    if (this.dragging) {
+      this.dragging = null;
+      this._autoSave();
+    }
   }
 
   _onWheel(e) {
@@ -632,6 +603,7 @@ export default class EditorTool {
     v.scale.y = Math.max(0.1, Math.min(5, v.scale.y * k));
     this._showSelected();
     this._refreshParamsBlock();
+    this._autoSaveDebounced();
   }
 
   _showSelected() {
@@ -646,13 +618,17 @@ export default class EditorTool {
       `<i>экран: <b>${live}</b> · save → <b>${writeTo}</b></i>`;
   }
 
-  save() {
+  // Записать текущее состояние всех таргетов в localStorage. Вызывается
+  // автоматически при каждом изменении (drag/wheel/input).
+  _autoSave() {
+    if (!this.active) return;
     if (!this.targets.length) this.collectTargets();
     const bucket = this._saveBucket();
     const data = migrate(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
     data[bucket] = data[bucket] || {};
     for (const t of this.targets) {
       const v = t.obj.view;
+      if (!v) continue;
       data[bucket][t.desc.id] = {
         x: Math.round(v.position.x),
         y: Math.round(v.position.y),
@@ -661,6 +637,18 @@ export default class EditorTool {
       };
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  _autoSaveDebounced() {
+    if (this._asTimer) clearTimeout(this._asTimer);
+    this._asTimer = setTimeout(() => this._autoSave(), 150);
+  }
+
+  save() {
+    // Текущее состояние уже в localStorage (autosave). Просто читаем
+    // его, показываем в textarea и пытаемся скопировать в буфер.
+    this._autoSave();
+    const data = migrate(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
     const pretty = JSON.stringify(data, null, 2);
     console.log("[EditorTool] saved layout:\n" + pretty);
 
@@ -691,9 +679,9 @@ export default class EditorTool {
     }
     stored = migrate(stored);
 
-    // Сливаем DEFAULT_LAYOUT и stored по букетам (per-target override).
+    // Per-target merge: дефолты + сохранённые правки.
     const merged = {};
-    for (const b of ALL_BUCKETS) {
+    for (const b of BUCKETS) {
       merged[b] = Object.assign(
         {},
         (DEFAULT_LAYOUT && DEFAULT_LAYOUT[b]) || {},
@@ -703,13 +691,12 @@ export default class EditorTool {
     }
     if (!Object.keys(merged).length) return;
 
-    // Engine-style cascade: какой именно букет применять для текущего экрана.
     const bucket = pickBucketFromData(merged);
     if (!bucket) return;
     const layout = merged[bucket];
 
     if (!this.targets.length) this.collectTargets();
-    const isPortrait = bucket === "portrait" || bucket.startsWith("portrait_");
+    const isPortrait = isPortraitBucket(bucket);
     for (const t of this.targets) {
       const e = layout[t.desc.id];
       if (!e) continue;
