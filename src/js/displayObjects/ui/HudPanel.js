@@ -15,9 +15,9 @@ const PILL_W = 110;
 const PILL_H = 32;
 
 // Расстояние от верхней границы фона до верха HUD-панели (px).
-// -50 подобрано дизайнером через HudOffsetTool: панель прижата плотно к
-// верху видимой области в полноэкранных раскладках без аспект-клампа.
-export const HUD_PANEL_TOP_OFFSET = -50;
+// -50 — панель прижата плотно к верху видимой области в полноэкранных
+// раскладках без аспект-клампа.
+const HUD_PANEL_TOP_OFFSET = -50;
 
 const COL_BG = 0xf7e7b5;
 const COL_STROKE = 0xd79a55;
@@ -77,15 +77,9 @@ export default class HudPanel extends Container {
     if (!bounds || bounds.height < 50) return;
     if (bounds.y <= 8) return;
     // halfPanel = ровно половина видимой высоты панели (без +4 inset),
-    // чтобы offset = bg.top → panel.top соблюдалось 1-в-1.
+    // чтобы HUD_PANEL_TOP_OFFSET = bg.top → panel.top соблюдалось 1-в-1.
     const halfPanel = (PANEL_H / 2) * v.scale.y;
-    // HudOffsetTool записывает в window.__rcpHudOffset для ручной
-    // настройки. Если не задано — используем дизайнерский дефолт.
-    const offset =
-      typeof window.__rcpHudOffset === "number"
-        ? window.__rcpHudOffset
-        : HUD_PANEL_TOP_OFFSET;
-    const desiredWorldY = bounds.y + offset + halfPanel;
+    const desiredWorldY = bounds.y + HUD_PANEL_TOP_OFFSET + halfPanel;
     const local = v.parent.toLocal({ x: 0, y: desiredWorldY });
     v.position.y = local.y;
   }
