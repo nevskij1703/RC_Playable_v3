@@ -46,10 +46,24 @@ export default class HudPanel extends Container {
     if (window.application && window.application.eventEmitter) {
       window.application.eventEmitter.on(
         APPLICATION_EVENTS.playableResize,
-        () => setTimeout(() => this._alignBelowBackground(), 160)
+        () => this._scheduleAlign()
       );
     }
-    setTimeout(() => this._alignBelowBackground(), 350);
+    this._scheduleAlign();
+  }
+
+  // Несколько отложенных попыток — back-спрайт может быть ещё не загружен
+  // в момент ранних тиков (медленный CDN, HMR-перезагрузка), а
+  // EditorTool.applyStoredLayout перезаписывает view.position на 80мс
+  // после resize. Тики 160/400/900/1800мс покрывают и быструю, и медленную
+  // загрузку. Если HUD уже внутри фона — _alignBelowBackground раннеритёрнит.
+  _scheduleAlign() {
+    if (this._alignTimers) {
+      this._alignTimers.forEach(clearTimeout);
+    }
+    this._alignTimers = [160, 400, 900, 1800].map((ms) =>
+      setTimeout(() => this._alignBelowBackground(), ms)
+    );
   }
 
   _alignBelowBackground() {
