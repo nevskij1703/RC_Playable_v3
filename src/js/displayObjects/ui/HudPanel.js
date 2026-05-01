@@ -71,12 +71,15 @@ export default class HudPanel extends Container {
     const bounds = back.getBounds();
     if (!bounds || bounds.height < 50) return;
     if (bounds.y <= 8) return;
-    const halfPanel = (PANEL_H / 2 + 4) * v.scale.y;
-    // Snap HUD top to the very top edge of the background image, regardless
-    // of where engine's adaptivePosition put it. Without snapping in both
-    // directions, on portrait-clamped aspects the panel can sit too low —
-    // visibly detached from the bg border the user expects it to hug.
-    const desiredWorldY = bounds.y + halfPanel;
+    // halfPanel = ровно половина видимой высоты панели (без +4 inset),
+    // чтобы offset = bg.top → panel.top соблюдалось 1-в-1.
+    const halfPanel = (PANEL_H / 2) * v.scale.y;
+    // Offset = расстояние от верхней границы фона до верха HUD-панели.
+    // По умолчанию 0 (панель прижата к бг). HudOffsetTool записывает
+    // в window.__rcpHudOffset, чтобы дизайнер мог настроить вручную.
+    const offset =
+      typeof window.__rcpHudOffset === "number" ? window.__rcpHudOffset : 0;
+    const desiredWorldY = bounds.y + offset + halfPanel;
     const local = v.parent.toLocal({ x: 0, y: desiredWorldY });
     v.position.y = local.y;
   }

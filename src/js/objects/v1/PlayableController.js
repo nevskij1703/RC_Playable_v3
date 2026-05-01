@@ -23,6 +23,7 @@ import Cola from "../../displayObjects/location/food/Cola";
 import Smoke from "../../displayObjects/location/Smoke";
 import Tortilla from "../../displayObjects/location/food/Tortilla";
 import EditorTool from "../EditorTool";
+import HudOffsetTool from "../HudOffsetTool";
 
 const TUTORIAL_DELAY_FOR_NEW_PRODUCT = 2000;
 const SLOT_COUNT = 3;
@@ -169,6 +170,13 @@ export default class PlayableController extends BaseObject {
       window.__rcpEditor = new EditorTool();
     }
     setTimeout(() => window.__rcpEditor.applyStoredLayout(), 200);
+
+    // Отдельный инструмент для подгонки расстояния panel.top ↔ bg.top.
+    // Кнопка "↕ HUD offset" в правом верхнем углу. Дизайнер крутит число,
+    // экспортирует JSON, шлёт разработчику для прописывания дефолта.
+    if (!window.__rcpHudOffsetTool) {
+      window.__rcpHudOffsetTool = new HudOffsetTool();
+    }
 
     // Все пулы монет летят к HUD-панели и стартуют из тултипа клиента
     // (бабл с заказом). Каждому слоту — свой пул со своим source.
