@@ -16,27 +16,47 @@ const ALL_BUCKETS = [...LANDSCAPE_BUCKETS, ...PORTRAIT_BUCKETS];
 // имеет приоритет: его правки override-ят эти значения.
 // Старые ключи "landscape"/"portrait" мигрируем в "default"/"portrait".
 const DEFAULT_LAYOUT = {
-  // Portrait, ratio < 2.15 (вертикальные экраны вообще)
+  // Portrait base (fallback для всех вертикальных < 2.15)
   portrait: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 80, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: 73, y: -506, scaleX: 0.935, scaleY: 0.935 },
+    old_grambler: { x: 140, y: 107, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: 124, y: -502, scaleX: 0.935, scaleY: 0.935 },
     tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
     tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
     hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
   },
-  // Portrait + 4:3 / iPad-podобные узкие пропорции (1.32 ≤ ratio < 1.49)
-  portrait_mn: {
+  // Portrait XLG (1.99 ≤ ratio < 2.15)
+  portrait_xlg: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 80, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: 73, y: -506, scaleX: 0.935, scaleY: 0.935 },
+    old_grambler: { x: 134, y: 114, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: 127, y: -506, scaleX: 0.935, scaleY: 0.935 },
+    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
+    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
+  },
+  // Portrait LG (1.76 ≤ ratio < 1.99)
+  portrait_lg: {
+    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -140, y: 120, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 125, y: 111, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: 134, y: -484, scaleX: 0.842, scaleY: 0.842 },
+    tooltip2: { x: -338, y: -487, scaleX: 0.837, scaleY: 0.837 },
+    tooltip3: { x: -115, y: -486, scaleX: 0.844, scaleY: 0.844 },
+    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
+  },
+  // Portrait MN (1.32 ≤ ratio < 1.49) — узкий iPad-подобный портрет
+  portrait_mn: {
+    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -125, y: 118, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 124, y: 114, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: 120, y: -504, scaleX: 0.935, scaleY: 0.935 },
     tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
     tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
     hudPanel: { x: -4, y: -374, scaleX: 1.34, scaleY: 1.34 },
   },
-  // Landscape (default), сверхширокие экраны ratio ≥ 2.15
+  // Landscape default (ratio ≥ 2.15) — сверхширокий
   default: {
     italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
@@ -46,14 +66,14 @@ const DEFAULT_LAYOUT = {
     tooltip3: { x: 130, y: -440, scaleX: 0.85, scaleY: 0.85 },
     hudPanel: { x: 0, y: -280, scaleX: 1, scaleY: 1 },
   },
-  // Landscape + 4:3 / почти квадратный экран (1.32 ≤ ratio < 1.49)
+  // Landscape MN (1.32 ≤ ratio < 1.49) — почти квадратный лэндскейп
   mn: {
-    italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
+    italian_man: { x: -363, y: 207, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -155, y: 119, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -310, y: -440, scaleX: 0.85, scaleY: 0.85 },
-    tooltip2: { x: -86, y: -438, scaleX: 0.85, scaleY: 0.85 },
-    tooltip3: { x: 130, y: -440, scaleX: 0.85, scaleY: 0.85 },
+    tooltip1: { x: -321, y: -412, scaleX: 0.682, scaleY: 0.682 },
+    tooltip2: { x: -104, y: -411, scaleX: 0.691, scaleY: 0.691 },
+    tooltip3: { x: 151, y: -412, scaleX: 0.692, scaleY: 0.692 },
     hudPanel: { x: -21, y: -282, scaleX: 1, scaleY: 1 },
   },
 };
