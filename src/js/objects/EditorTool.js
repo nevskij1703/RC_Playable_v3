@@ -181,13 +181,17 @@ function migrate(stored) {
 
 // Список редактируемых объектов: имя + способ найти baseObject.
 // path: spawn-character доступ через буферный контейнер; linkID — через ObjectLinks.
+//
+// Маппинг tooltipN → character соответствует SLOT_TOOLTIPS / SLOT_CHARACTERS
+// в PlayableController.js (zip по индексу). Tooltip "принадлежит" клиенту,
+// над которым он должен висеть. labelOwner используется для подписи в editor.
 const TARGETS = [
   { id: "italian_man", child: "italian_man" },
   { id: "pretty_woman", child: "pretty_woman" },
   { id: "old_grambler", child: "old_grambler" },
-  { id: "tooltip1", linkID: OBJECTS.tooltip1 },
-  { id: "tooltip2", linkID: OBJECTS.tooltip2 },
-  { id: "tooltip3", linkID: OBJECTS.tooltip3 },
+  { id: "tooltip1", linkID: OBJECTS.tooltip1, labelOwner: "italian_man" },
+  { id: "tooltip2", linkID: OBJECTS.tooltip2, labelOwner: "pretty_woman" },
+  { id: "tooltip3", linkID: OBJECTS.tooltip3, labelOwner: "old_grambler" },
   { id: "hudPanel", linkID: OBJECTS.hudPanel },
 ];
 
@@ -386,7 +390,26 @@ export default class EditorTool {
       outline.drawRoundedRect(rx, ry, rw, rh, 8);
       outline.eventMode = "none";
       v.addChild(outline);
-      this._outlines.push({ t, outline });
+
+      // Текстовая метка с именем таргета. Для tooltip-ов добавляем "→ owner",
+      // чтобы было видно, какому клиенту принадлежит этот бабл.
+      const labelText = t.desc.labelOwner
+        ? `${t.desc.id} → ${t.desc.labelOwner}`
+        : t.desc.id;
+      const label = new PIXI.Text(labelText, {
+        fontFamily: "Arial Black, Arial, sans-serif",
+        fontSize: 16,
+        fontWeight: "900",
+        fill: 0xffffff,
+        stroke: isCharacter ? 0xc05010 : 0x205fa0,
+        strokeThickness: 4,
+      });
+      label.anchor.set(0.5, 1);
+      label.x = rx + rw / 2;
+      label.y = ry - 4;
+      label.eventMode = "none";
+      v.addChild(label);
+      this._outlines.push({ t, outline, label });
     }
 
     this._wheelFn = (e) => this._onWheel(e);
@@ -431,9 +454,13 @@ export default class EditorTool {
       this._stageDown = this._stageMove = this._stageUp = null;
     }
     if (this._outlines) {
-      for (const { outline } of this._outlines) {
+      for (const { outline, label } of this._outlines) {
         if (outline.parent) outline.parent.removeChild(outline);
         outline.destroy && outline.destroy();
+        if (label) {
+          if (label.parent) label.parent.removeChild(label);
+          label.destroy && label.destroy();
+        }
       }
       this._outlines = null;
     }
