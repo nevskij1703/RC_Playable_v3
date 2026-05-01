@@ -74,7 +74,7 @@ export default class HudPanel extends Container {
     const halfPanel = (PANEL_H / 2 + 4) * v.scale.y;
     const hudTopWorldY = v.worldTransform.ty - halfPanel;
     if (hudTopWorldY >= bounds.y - 4) return;
-    const desiredWorldY = bounds.y + 30 + halfPanel;
+    const desiredWorldY = bounds.y + 5 + halfPanel;
     const local = v.parent.toLocal({ x: 0, y: desiredWorldY });
     v.position.y = local.y;
   }
