@@ -31,7 +31,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -310, y: -433, scaleX: 0.691, scaleY: 0.691 },
     tooltip2: { x: -85, y: -430, scaleX: 0.692, scaleY: 0.692 },
     tooltip3: { x: 159, y: -432, scaleX: 0.691, scaleY: 0.691 },
-    hudPanel: { x: 0, y: -355, scaleX: 0.815, scaleY: 0.815 },
+    hudPanel: { x: 0, y: 40, scaleX: 0.815, scaleY: 0.815 },
   },
   // Классический горизонтальный десктоп (16:9, 16:10, 5:3, 3:2)
   desktop: {
@@ -41,7 +41,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -305, y: -409, scaleX: 0.658, scaleY: 0.658 },
     tooltip2: { x: -90, y: -410, scaleX: 0.656, scaleY: 0.656 },
     tooltip3: { x: 158, y: -409, scaleX: 0.625, scaleY: 0.625 },
-    hudPanel: { x: 0, y: -355, scaleX: 0.815, scaleY: 0.815 },
+    hudPanel: { x: 0, y: 40, scaleX: 0.815, scaleY: 0.815 },
   },
   // Почти квадратный экран (4:3 лэндскейп)
   square: {
@@ -51,7 +51,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -321, y: -412, scaleX: 0.682, scaleY: 0.682 },
     tooltip2: { x: -104, y: -411, scaleX: 0.691, scaleY: 0.691 },
     tooltip3: { x: 151, y: -412, scaleX: 0.692, scaleY: 0.692 },
-    hudPanel: { x: 0, y: -350, scaleX: 1, scaleY: 1 },
+    hudPanel: { x: 0, y: 40, scaleX: 1, scaleY: 1 },
   },
   // 3:4 — вертикальный планшет
   tablet: {
@@ -61,7 +61,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -353, y: -544, scaleX: 0.93, scaleY: 0.93 },
     tooltip2: { x: -119, y: -540, scaleX: 0.93, scaleY: 0.93 },
     tooltip3: { x: 131, y: -538, scaleX: 0.932, scaleY: 0.932 },
-    hudPanel: { x: 0, y: -363, scaleX: 0.885, scaleY: 0.885 },
+    hudPanel: { x: 0, y: 80, scaleX: 0.885, scaleY: 0.885 },
   },
   // 9:16 — вертикальный телефон
   phone: {
@@ -71,7 +71,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -345, y: -517, scaleX: 0.842, scaleY: 0.842 },
     tooltip2: { x: -121, y: -516, scaleX: 0.837, scaleY: 0.837 },
     tooltip3: { x: 121, y: -517, scaleX: 0.844, scaleY: 0.844 },
-    hudPanel: { x: 3, y: -356, scaleX: 1.149, scaleY: 1.149 },
+    hudPanel: { x: 3, y: 130, scaleX: 1.149, scaleY: 1.149 },
   },
   // 9:21 — сверх-вытянутый вертикальный
   ultraTall: {
@@ -81,7 +81,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -119, y: -542, scaleX: 0.935, scaleY: 0.935 },
     tooltip2: { x: -356, y: -542, scaleX: 0.93, scaleY: 0.93 },
     tooltip3: { x: 129, y: -542, scaleX: 0.937, scaleY: 0.937 },
-    hudPanel: { x: 2, y: -350, scaleX: 1.34, scaleY: 1.34 },
+    hudPanel: { x: 2, y: 160, scaleX: 1.34, scaleY: 1.34 },
   },
 };
 
@@ -146,15 +146,14 @@ function migrate(stored) {
     const newKey = OLD_TO_NEW[k];
     if (newKey && !out[newKey]) out[newKey] = stored[k];
   }
-  // HUD теперь якорится к ЦЕНТРУ канваса (align(0.5, 0.5)). Действительные
-  // y находятся в диапазоне ~ -380..-340 (точно ниже верха задней стены
-  // фона, который сидит на ~ -418 от center-y портрета). Чистим явно
-  // несовместимые саве-записи: top-anchor era (положительные y), а также
-  // старые raw-position сохранения, ставящие HUD выше задней стены
-  // (y < -390 → HUD центр почти у самого верха стены или выше).
+  // HUD якорится к ВЕРХУ канваса (align(0.5, 0)) — y значения положительные
+  // в диапазоне ~30..200 (offset от верхнего края). Любые отрицательные y
+  // — устаревший формат (raw view.position или center-anchor попытка),
+  // и слишком большие положительные (>250) тоже не валидны. Чистим, чтобы
+  // подхватились дефолты.
   for (const bk of Object.keys(out)) {
     const e = out[bk] && out[bk].hudPanel;
-    if (e && typeof e.y === "number" && (e.y > 0 || e.y < -390)) {
+    if (e && typeof e.y === "number" && (e.y < 0 || e.y > 250)) {
       delete out[bk].hudPanel;
     }
   }
@@ -183,7 +182,7 @@ const TARGETS = [
   {
     id: "hudPanel",
     linkID: OBJECTS.hudPanel,
-    canvasAnchor: { x: 0.5, y: 0.5 },
+    canvasAnchor: { x: 0.5, y: 0 },
   },
 ];
 

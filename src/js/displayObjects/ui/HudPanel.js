@@ -64,12 +64,19 @@ export default class HudPanel extends Container {
     if (!back) return;
     const bounds = back.getBounds();
     if (!bounds || bounds.height < 50) return;
-    // Видимый верх фона = top спрайта, но не выше канваса. В лэндскейпе
-    // back-wall шире/выше канваса, его реальный top уходит за y=0
-    // (off-canvas вверх) — тогда отсчитываем от верхнего края канваса.
-    const visibleTop = Math.max(bounds.y, 0);
+    // Корректировку запускаем только если фон НЕ доходит до верха канваса
+    // и над ним есть видимая чёрная зона (т.е. bounds.y > 0). На ландшейпе
+    // и квадратных аспектах back-wall перекрывает верх канваса — bucket-
+    // layout уже даёт корректное положение HUD'а (под верхним краем,
+    // выше тултипов клиентов), не трогаем его.
+    if (bounds.y <= 8) return;
+    // Дополнительно проверяем — если HUD уже находится ниже верха стены,
+    // значит юзер/bucket уже расположил его внутри фона. Не сдвигаем.
     const halfPanel = (PANEL_H / 2 + 4) * v.scale.y; // +4 — учёт нижней тени
-    const desiredWorldY = visibleTop + 30 + halfPanel;
+    const hudTopWorldY = v.worldTransform.ty - halfPanel;
+    if (hudTopWorldY >= bounds.y - 4) return;
+    // Иначе — HUD в чёрной зоне над фоном, прижимаем под верх стены.
+    const desiredWorldY = bounds.y + 30 + halfPanel;
     const local = v.parent.toLocal({ x: 0, y: desiredWorldY });
     v.position.y = local.y;
   }
