@@ -1,12 +1,9 @@
 import {
   Animation,
-  APPLICATION_EVENTS,
   Container,
   Easing,
-  ObjectLinks,
   PIXI,
 } from "PlayableAdsEngine";
-import { OBJECTS } from "../../const";
 
 const PANEL_W = 340;
 const PANEL_H = 56;
@@ -37,64 +34,6 @@ export default class HudPanel extends Container {
     this._buildCoinSection();
     this._buildClientSection();
     this._render();
-
-    // На ультра-вытянутых аспектах фон не доходит до верха канваса —
-    // top-anchor из bucket'а ставит HUD в чёрную зону над back-wall.
-    // Если HUD оказался выше верха background-картинки, снапаем его вниз
-    // под верх стены. На landscape/squarish bucket'ах фон занимает верх
-    // канваса (bounds.y ≤ 8) — там не вмешиваемся, bucket-layout уже ок.
-    if (window.application && window.application.eventEmitter) {
-      window.application.eventEmitter.on(
-        APPLICATION_EVENTS.playableResize,
-        () => this._scheduleAlign()
-      );
-    }
-    this._scheduleAlign();
-  }
-
-  // Несколько отложенных попыток — back-спрайт может быть ещё не загружен
-  // в момент ранних тиков (медленный CDN, HMR-перезагрузка), а
-  // EditorTool.applyStoredLayout перезаписывает view.position на 80мс
-  // после resize. Тики 160/400/900/1800мс покрывают и быструю, и медленную
-  // загрузку. Если HUD уже внутри фона — _alignBelowBackground раннеритёрнит.
-  _scheduleAlign() {
-    if (this._alignTimers) {
-      this._alignTimers.forEach(clearTimeout);
-    }
-    this._alignTimers = [160, 400, 900, 1800].map((ms) =>
-      setTimeout(() => this._alignBelowBackground(), ms)
-    );
-  }
-
-  _alignBelowBackground() {
-    const v = this.view;
-    if (!v || !v.parent) return;
-    const back = this._findBackSprite();
-    if (!back) return;
-    const bounds = back.getBounds();
-    if (!bounds || bounds.height < 50) return;
-    // Фон закрывает верх канваса — bucket-layout уже корректен, не трогаем.
-    if (bounds.y <= 8) return;
-    // HUD уже внутри фона (юзер/bucket поставили его правильно) — не двигаем.
-    const halfPanel = (PANEL_H / 2 + 4) * v.scale.y;
-    const hudTopWorldY = v.worldTransform.ty - halfPanel;
-    if (hudTopWorldY >= bounds.y - 4) return;
-    // Иначе — HUD в чёрной зоне над фоном, прижимаем под верх стены.
-    const desiredWorldY = bounds.y + 30 + halfPanel;
-    const local = v.parent.toLocal({ x: 0, y: desiredWorldY });
-    v.position.y = local.y;
-  }
-
-  _findBackSprite() {
-    const loc = ObjectLinks.get(OBJECTS.location);
-    const root = loc && loc.view;
-    if (!root || !root.children) return null;
-    // Location → background (0й child) → back (0й child)
-    const bg = root.children[0];
-    if (!bg || !bg.children) return null;
-    const back = bg.children[0];
-    if (!back || !back._texture) return null;
-    return back;
   }
 
   // ---------- Drawing ----------

@@ -31,7 +31,6 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -310, y: -433, scaleX: 0.691, scaleY: 0.691 },
     tooltip2: { x: -85, y: -430, scaleX: 0.692, scaleY: 0.692 },
     tooltip3: { x: 159, y: -432, scaleX: 0.691, scaleY: 0.691 },
-    hudPanel: { x: 11, y: 30, scaleX: 0.815, scaleY: 0.815 },
   },
   // Классический горизонтальный десктоп (16:9, 16:10, 5:3, 3:2)
   desktop: {
@@ -41,7 +40,6 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -305, y: -409, scaleX: 0.658, scaleY: 0.658 },
     tooltip2: { x: -90, y: -410, scaleX: 0.656, scaleY: 0.656 },
     tooltip3: { x: 158, y: -409, scaleX: 0.625, scaleY: 0.625 },
-    hudPanel: { x: 12, y: 31, scaleX: 0.815, scaleY: 0.815 },
   },
   // Почти квадратный экран (4:3 лэндскейп)
   square: {
@@ -51,7 +49,6 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -321, y: -412, scaleX: 0.682, scaleY: 0.682 },
     tooltip2: { x: -104, y: -411, scaleX: 0.691, scaleY: 0.691 },
     tooltip3: { x: 151, y: -412, scaleX: 0.692, scaleY: 0.692 },
-    hudPanel: { x: -21, y: 38, scaleX: 1, scaleY: 1 },
   },
   // 3:4 — вертикальный планшет
   tablet: {
@@ -61,7 +58,6 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -353, y: -544, scaleX: 0.93, scaleY: 0.93 },
     tooltip2: { x: -119, y: -540, scaleX: 0.93, scaleY: 0.93 },
     tooltip3: { x: 131, y: -538, scaleX: 0.932, scaleY: 0.932 },
-    hudPanel: { x: -4, y: 40, scaleX: 0.885, scaleY: 0.885 },
   },
   // 9:16 — вертикальный телефон
   phone: {
@@ -71,7 +67,6 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -345, y: -517, scaleX: 0.842, scaleY: 0.842 },
     tooltip2: { x: -121, y: -516, scaleX: 0.837, scaleY: 0.837 },
     tooltip3: { x: 121, y: -517, scaleX: 0.844, scaleY: 0.844 },
-    hudPanel: { x: 0, y: 40, scaleX: 1.149, scaleY: 1.149 },
   },
   // 9:21 — сверх-вытянутый вертикальный
   ultraTall: {
@@ -81,7 +76,6 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -119, y: -542, scaleX: 0.935, scaleY: 0.935 },
     tooltip2: { x: -356, y: -542, scaleX: 0.93, scaleY: 0.93 },
     tooltip3: { x: 129, y: -542, scaleX: 0.937, scaleY: 0.937 },
-    hudPanel: { x: 2, y: 56, scaleX: 1.34, scaleY: 1.34 },
   },
 };
 
@@ -166,9 +160,9 @@ function migrate(stored) {
 // в PlayableController.js (zip по индексу). Tooltip "принадлежит" клиенту,
 // над которым он должен висеть. labelOwner используется для подписи в editor.
 //
-// topAnchor: true — координаты этого таргета сохраняются и применяются
-// относительно ВЕРХНЕГО КРАЯ канваса (y=0 = верх) и центральной вертикали
-// (x=0 = центр). Полезно для UI, привязанного к экрану, а не к сцене.
+// HudPanel НЕ редактируется через editor — она прибита к верху канваса
+// через engine'овский adaptivePosition + position/position_portrait,
+// так же как кнопки Install и Mute прибиты к нижнему краю.
 const TARGETS = [
   { id: "italian_man", child: "italian_man" },
   { id: "pretty_woman", child: "pretty_woman" },
@@ -176,7 +170,6 @@ const TARGETS = [
   { id: "tooltip1", linkID: OBJECTS.tooltip1, labelOwner: "italian_man" },
   { id: "tooltip2", linkID: OBJECTS.tooltip2, labelOwner: "pretty_woman" },
   { id: "tooltip3", linkID: OBJECTS.tooltip3, labelOwner: "old_grambler" },
-  { id: "hudPanel", linkID: OBJECTS.hudPanel, topAnchor: true },
 ];
 
 // Точка в parent-local координатах, соответствующая align-якорю на канвасе
