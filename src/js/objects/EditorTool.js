@@ -201,15 +201,18 @@ export default class EditorTool {
     return r && r.isPortrait ? "portrait" : "landscape";
   }
 
-  // Зажимаем пропорции экрана дизайнерским ratio (1500/640 ≈ 2.34). На
-  // более вытянутых вьюпортах (например, длинные узкие телефоны) лишнее
-  // пространство body становится чёрными полосами вокруг канваса; UI и
-  // bubbles больше не уезжают в пустоту.
+  // Зажимаем пропорции экрана так, чтобы UI на align-краях (HUD сверху,
+  // Install снизу) не оказывался в неотрисованных областях канваса.
+  // Игра спроектирована для ratio ~9:18 в портрете и ~21:9 в ландшафте;
+  // экстремальные пропорции отдаём в чёрные поля по краям body.
   _setupAspectClamp() {
     const app = window.application;
     if (!app || app._aspectClampApplied) return;
     app._aspectClampApplied = true;
-    const DESIGN_RATIO = 1500 / 640; // engine size config
+    // Максимально допустимый аспект (длинная сторона / короткая).
+    // 2.05 ≈ 9:18.5, покрывает все типовые телефоны (9:16 — 9:20),
+    // отсекая ультра-вытянутые (9:21+) и фейковые dev-mode размеры.
+    const MAX_RATIO = 2.05;
 
     Object.defineProperty(app, "screenSize", {
       configurable: true,
@@ -219,9 +222,9 @@ export default class EditorTool {
         let cw = w;
         let ch = h;
         if (h > w) {
-          ch = Math.min(h, w * DESIGN_RATIO); // portrait clamp height
+          ch = Math.min(h, w * MAX_RATIO);
         } else {
-          cw = Math.min(w, h * DESIGN_RATIO); // landscape clamp width
+          cw = Math.min(w, h * MAX_RATIO);
         }
         return { width: cw, height: ch };
       },

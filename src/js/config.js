@@ -23,10 +23,6 @@ export default {
 
     {
       class: MainContainer,
-      // Landscape: значительно расширенная область видимости — сцена
-      // сжимается, чтобы баблы клиентов и верхняя HUD-панель ни при каких
-      // условиях не перекрывались. В portrait чуть мягче (ширины и так
-      // хватает, нужно только освободить верх под HUD).
       position: { absolute: true, centered: true, x: 0, y: 70 },
       position_portrait: { absolute: true, centered: true, x: 0, y: 60 },
       scale: { x: 0.78, y: 0.78 },
