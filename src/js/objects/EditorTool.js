@@ -210,9 +210,10 @@ export default class EditorTool {
     if (!app || app._aspectClampApplied) return;
     app._aspectClampApplied = true;
     // Максимально допустимый аспект (длинная сторона / короткая).
-    // 2.05 ≈ 9:18.5, покрывает все типовые телефоны (9:16 — 9:20),
-    // отсекая ультра-вытянутые (9:21+) и фейковые dev-mode размеры.
-    const MAX_RATIO = 2.05;
+    // 1.9 ≈ 9:17 — плотно облегает фон сцены, не оставляет свободного
+    // канваса выше/ниже background-картинки. Покрывает 9:16 без
+    // letterbox; для более вытянутых вьюпортов идут чёрные поля.
+    const MAX_RATIO = 1.9;
 
     Object.defineProperty(app, "screenSize", {
       configurable: true,
