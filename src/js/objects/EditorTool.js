@@ -3,9 +3,18 @@ import { OBJECTS } from "../const";
 
 const STORAGE_KEY = "rcp_editor_layout_v1";
 
+// Движок раскладки имеет 8 ratio-buckets для каждой ориентации
+// (см. window.RATIO в Application.js и BaseViewObject.detectPositionName).
+// Порядок iteration важен — он совпадает с порядком в Application.js.
+const RATIO_KEYS = ["xlg", "lg", "md", "sm", "xsm", "mn", "emn"];
+const LANDSCAPE_BUCKETS = ["default", ...RATIO_KEYS];
+const PORTRAIT_BUCKETS = ["portrait", ...RATIO_KEYS.map((k) => "portrait_" + k)];
+const ALL_BUCKETS = [...LANDSCAPE_BUCKETS, ...PORTRAIT_BUCKETS];
+
 // Дефолтный layout — встраивается в код, применяется на чистой сборке
 // (без localStorage). Получен из in-game редактора. localStorage юзера
 // имеет приоритет: его правки override-ят эти значения.
+// Старые ключи "landscape"/"portrait" мигрируем в "default"/"portrait".
 const DEFAULT_LAYOUT = {
   portrait: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
@@ -16,7 +25,7 @@ const DEFAULT_LAYOUT = {
     tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
     hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
   },
-  landscape: {
+  default: {
     italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
@@ -26,6 +35,54 @@ const DEFAULT_LAYOUT = {
     hudPanel: { x: 0, y: -280, scaleX: 1, scaleY: 1 },
   },
 };
+
+// Имя букета, которое выбрал бы движок для текущего экрана
+// (в точности повторяет логику BaseViewObject.detectPositionName).
+function detectCurrentBucket() {
+  const r = window.application && window.application.renderer;
+  if (!r || !window.RATIO) return "default";
+  const isPortrait = r.isPortrait;
+  const lr = r.getLandscapeRatio;
+  let name = isPortrait ? "portrait" : "default";
+  for (const key of RATIO_KEYS) {
+    const threshold = window.RATIO[key.toUpperCase()];
+    if (lr >= threshold) break;
+    name = (isPortrait ? "portrait_" : "") + key;
+  }
+  return name;
+}
+
+// Какой из существующих в data букетов engine выбрал бы для текущего экрана
+// (cascade: только те, что реально присутствуют). Если ничего не подошло
+// — возвращаем base ("default" или "portrait", с фолбэком на default).
+function pickBucketFromData(data) {
+  const r = window.application && window.application.renderer;
+  if (!r || !window.RATIO) return data["default"] ? "default" : null;
+  const isPortrait = r.isPortrait;
+  const lr = r.getLandscapeRatio;
+  let name = isPortrait ? "portrait" : "default";
+  for (const key of RATIO_KEYS) {
+    const threshold = window.RATIO[key.toUpperCase()];
+    if (lr >= threshold) break;
+    const candidate = (isPortrait ? "portrait_" : "") + key;
+    if (data[candidate]) name = candidate;
+  }
+  if (!data[name]) {
+    if (isPortrait && data["default"]) return "default";
+    return null;
+  }
+  return name;
+}
+
+// Миграция старых ключей "landscape"→"default".
+function migrate(stored) {
+  if (!stored || typeof stored !== "object") return stored || {};
+  if (stored.landscape && !stored.default) {
+    stored.default = stored.landscape;
+    delete stored.landscape;
+  }
+  return stored;
+}
 
 // Список редактируемых объектов: имя + способ найти baseObject.
 // path: spawn-character доступ через буферный контейнер; linkID — через ObjectLinks.
@@ -58,6 +115,12 @@ export default class EditorTool {
     return r && r.isPortrait ? "portrait" : "landscape";
   }
 
+  // В какой букет писать save() — либо явно выбранный в селекторе, либо
+  // тот, что движок выбрал бы для текущего экрана.
+  _saveBucket() {
+    return this.editingBucket || detectCurrentBucket();
+  }
+
   _buildUI() {
     if (document.getElementById("rcp-editor-ui")) return;
     const wrap = document.createElement("div");
@@ -71,7 +134,8 @@ export default class EditorTool {
       '<button id="ed-save" style="display:block;width:100%;padding:7px 10px;margin-bottom:6px;background:#4FA8E0;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сохранить положения</button>' +
       '<button id="ed-reset" style="display:block;width:100%;padding:7px 10px;background:#999;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сбросить → Reload</button>' +
       '<div id="ed-status" style="margin-top:8px;font-size:11px;color:#444;line-height:1.35;"></div>' +
-      '<div id="ed-params" style="display:none;margin-top:10px;border-top:1px solid #ddd;padding-top:8px;max-height:55vh;overflow:auto;"></div>' +
+      '<div id="ed-buckets" style="display:none;margin-top:10px;border-top:1px solid #ddd;padding-top:8px;font-size:10px;"></div>' +
+      '<div id="ed-params" style="display:none;margin-top:10px;border-top:1px solid #ddd;padding-top:8px;max-height:50vh;overflow:auto;"></div>' +
       '<textarea id="ed-dump" readonly style="display:none;width:100%;height:140px;margin-top:8px;font:11px monospace;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;resize:vertical;"></textarea>' +
       '<button id="ed-copy" style="display:none;width:100%;padding:6px 10px;margin-top:6px;background:#7561C8;color:#fff;border:none;border-radius:5px;cursor:pointer;">Скопировать в буфер</button>' +
       "</div>";
@@ -147,7 +211,10 @@ export default class EditorTool {
       APPLICATION_EVENTS.playableResize,
       () => {
         // Engine может пересбросить view.position по resize — re-apply.
-        setTimeout(() => this.applyStoredLayout(), 80);
+        setTimeout(() => {
+          this.applyStoredLayout();
+          if (this.active) this._buildBucketSelector();
+        }, 80);
       }
     );
   }
@@ -230,7 +297,8 @@ export default class EditorTool {
     this._wheelFn = (e) => this._onWheel(e);
     document.addEventListener("wheel", this._wheelFn, { passive: false });
 
-    // Блок параметров с полями ввода.
+    // Селектор ratio-букетов и блок параметров.
+    this._buildBucketSelector();
     this._buildParamsBlock();
   }
 
@@ -280,7 +348,61 @@ export default class EditorTool {
     }
     const params = document.getElementById("ed-params");
     if (params) params.style.display = "none";
+    const buckets = document.getElementById("ed-buckets");
+    if (buckets) buckets.style.display = "none";
     this.dragging = null;
+  }
+
+  // ---------- Селектор ratio-букетов ----------
+
+  _buildBucketSelector() {
+    const wrap = document.getElementById("ed-buckets");
+    if (!wrap) return;
+    const live = detectCurrentBucket();
+    const writeTo = this._saveBucket();
+    const btnCss = (b) => {
+      const isLive = b === live;
+      const isEdit = b === writeTo;
+      const bg = isEdit ? "#7561C8" : isLive ? "#E07A2A" : "#eee";
+      const fg = isEdit || isLive ? "#fff" : "#333";
+      return `padding:3px 6px;margin:1px;background:${bg};color:${fg};border:1px solid #bbb;border-radius:3px;cursor:pointer;font:bold 9px monospace;`;
+    };
+    const ratioLabel = (b) => {
+      if (b === "default") return "default · ≥2.15";
+      if (b === "portrait") return "portrait · ≥2.15";
+      const k = (b.replace("portrait_", "")).toUpperCase();
+      const cur = window.RATIO ? window.RATIO[k] : null;
+      return `${b} · <${cur || k}`;
+    };
+    let html = "";
+    html += `<div style="margin-bottom:4px;">Активный экран: <b style="color:#E07A2A;">${live}</b></div>`;
+    html += '<div style="margin-bottom:4px;color:#666;">Сохранять в (клик меняет цель save):</div>';
+    html += '<div><button data-bucket="" style="' +
+      btnCss(this.editingBucket ? "" : "__auto__") +
+      '">авто (по экрану)</button></div>';
+    html += '<div style="margin-top:4px;"><b>Landscape:</b></div>';
+    html += '<div style="display:flex;flex-wrap:wrap;">';
+    for (const b of LANDSCAPE_BUCKETS) {
+      html += `<button data-bucket="${b}" title="${ratioLabel(b)}" style="${btnCss(b)}">${b}</button>`;
+    }
+    html += "</div>";
+    html += '<div style="margin-top:4px;"><b>Portrait:</b></div>';
+    html += '<div style="display:flex;flex-wrap:wrap;">';
+    for (const b of PORTRAIT_BUCKETS) {
+      const short = b === "portrait" ? "portrait" : b.replace("portrait_", "p_");
+      html += `<button data-bucket="${b}" title="${ratioLabel(b)}" style="${btnCss(b)}">${short}</button>`;
+    }
+    html += "</div>";
+    wrap.innerHTML = html;
+    wrap.querySelectorAll("button[data-bucket]").forEach((btn) => {
+      btn.onclick = () => {
+        const v = btn.dataset.bucket;
+        this.editingBucket = v ? v : null; // "" → авто
+        this._buildBucketSelector();
+        this._showSelected();
+      };
+    });
+    wrap.style.display = "block";
   }
 
   // ---------- Блок параметров (числовые поля для каждого таргета) ----------
@@ -393,21 +515,23 @@ export default class EditorTool {
   _showSelected() {
     if (!this.selected || !this.statusEl) return;
     const v = this.selected.obj.view;
+    const live = detectCurrentBucket();
+    const writeTo = this._saveBucket();
     this.statusEl.innerHTML =
       `<b>${this.selected.desc.id}</b><br>` +
       `pos: ${v.position.x.toFixed(0)}, ${v.position.y.toFixed(0)}<br>` +
       `scale: ${v.scale.x.toFixed(2)}<br>` +
-      `<i>${this._orientation()}</i>`;
+      `<i>экран: <b>${live}</b> · save → <b>${writeTo}</b></i>`;
   }
 
   save() {
     if (!this.targets.length) this.collectTargets();
-    const orient = this._orientation();
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    data[orient] = data[orient] || {};
+    const bucket = this._saveBucket();
+    const data = migrate(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
+    data[bucket] = data[bucket] || {};
     for (const t of this.targets) {
       const v = t.obj.view;
-      data[orient][t.desc.id] = {
+      data[bucket][t.desc.id] = {
         x: Math.round(v.position.x),
         y: Math.round(v.position.y),
         scaleX: +v.scale.x.toFixed(3),
@@ -443,15 +567,27 @@ export default class EditorTool {
         stored = JSON.parse(raw) || {};
       } catch (e) {}
     }
-    const orient = this._orientation();
-    // localStorage override-ит default-ы для каждого таргета по отдельности.
-    const layout = Object.assign(
-      {},
-      (DEFAULT_LAYOUT && DEFAULT_LAYOUT[orient]) || {},
-      stored[orient] || {}
-    );
-    if (!Object.keys(layout).length) return;
+    stored = migrate(stored);
+
+    // Сливаем DEFAULT_LAYOUT и stored по букетам (per-target override).
+    const merged = {};
+    for (const b of ALL_BUCKETS) {
+      merged[b] = Object.assign(
+        {},
+        (DEFAULT_LAYOUT && DEFAULT_LAYOUT[b]) || {},
+        (stored && stored[b]) || {}
+      );
+      if (!Object.keys(merged[b]).length) delete merged[b];
+    }
+    if (!Object.keys(merged).length) return;
+
+    // Engine-style cascade: какой именно букет применять для текущего экрана.
+    const bucket = pickBucketFromData(merged);
+    if (!bucket) return;
+    const layout = merged[bucket];
+
     if (!this.targets.length) this.collectTargets();
+    const isPortrait = bucket === "portrait" || bucket.startsWith("portrait_");
     for (const t of this.targets) {
       const e = layout[t.desc.id];
       if (!e) continue;
@@ -463,20 +599,18 @@ export default class EditorTool {
         v.scale.x = e.scaleX;
         v.scale.y = e.scaleY;
       }
-      // Зеркалим в config — чтобы animations и AdaptivePositionBehavior
-      // пересчитывались с новых значений на следующем resize.
+      // Зеркалим в config — чтобы animations (animateCharacterIn,
+      // moveOut и т.д.) использовали актуальную точку.
       const cfg = t.obj.config || {};
       const pkey =
-        orient === "portrait" && cfg.position_portrait
-          ? "position_portrait"
-          : "position";
+        isPortrait && cfg.position_portrait ? "position_portrait" : "position";
       if (cfg[pkey]) {
         cfg[pkey].x = e.x;
         cfg[pkey].y = e.y;
       }
       const skey =
-        orient === "portrait" && cfg.scale_portrait ? "scale_portrait" : "scale";
-      if (cfg[skey]) {
+        isPortrait && cfg.scale_portrait ? "scale_portrait" : "scale";
+      if (cfg[skey] && e.scaleX != null) {
         cfg[skey].x = e.scaleX;
         cfg[skey].y = e.scaleY;
       }
