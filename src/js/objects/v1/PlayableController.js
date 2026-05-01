@@ -980,26 +980,27 @@ export default class PlayableController extends BaseObject {
     const tableObj = ObjectLinks.get(OBJECTS.table);
     if (!tableObj || !tableObj.view) return;
 
-    // Тарелки 2 и 3: белые тарелки на столе нарисованы на спрайте table.png
-    // (статичная часть). Покрываем их dim-кругом + замком в Layer table.
+    // Тарелки 2 и 3: белые тарелки на столе нарисованы прямо на спрайте
+    // table.png (статичная часть). Когда тарелка ещё не куплена — закрашиваем
+    // её область цветом стола (#803311 — самплинг с tray-area), чтобы
+    // визуально тарелки просто не было. Без замка/dim — чисто и не отвлекает.
     const dishPositions = {
       [OBJECTS.dish2]: { x: 68, y: -105 },
       [OBJECTS.dish3]: { x: 198, y: -105 },
     };
+    const TABLE_TRAY_COLOR = 0x803311;
     for (const linkID of this.lockedDishes) {
       const pos = dishPositions[linkID];
       if (!pos) continue;
-      const dim = new PIXI.Graphics();
-      dim.beginFill(0x000000, 0.4);
-      dim.drawCircle(pos.x, pos.y, 50);
-      dim.endFill();
-      tableObj.view.addChild(dim);
+      const cover = new PIXI.Graphics();
+      cover.beginFill(TABLE_TRAY_COLOR);
+      // Радиус 56 — чуть больше тарелки (~50), чтобы запас покрывал тень
+      // под краями тарелки.
+      cover.drawCircle(pos.x, pos.y, 56);
+      cover.endFill();
+      tableObj.view.addChild(cover);
 
-      const badge = createLockBadge(34);
-      badge.position.set(pos.x, pos.y);
-      tableObj.view.addChild(badge);
-
-      this._lockBadges.push({ kind: "plate", linkID, badge, dim });
+      this._lockBadges.push({ kind: "plate", linkID, cover });
     }
 
     // Топпинги: tomato/cucumbers/fry — Food-контейнеры. Делаем сам контейнер
@@ -1130,11 +1131,10 @@ export default class PlayableController extends BaseObject {
     this.emptyDishes.push(linkID);
     this.unlockedPlateCount++;
 
-    // Убрать замок и dim для этой тарелки.
+    // Убрать cover-кружок — тарелка из table.png снова видна.
     this._lockBadges = this._lockBadges.filter((entry) => {
       if (entry.kind === "plate" && entry.linkID === linkID) {
-        if (entry.badge && entry.badge.parent) entry.badge.parent.removeChild(entry.badge);
-        if (entry.dim && entry.dim.parent) entry.dim.parent.removeChild(entry.dim);
+        if (entry.cover && entry.cover.parent) entry.cover.parent.removeChild(entry.cover);
         return false;
       }
       return true;
