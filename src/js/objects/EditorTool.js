@@ -795,18 +795,18 @@ export default class EditorTool {
       if (!e) continue;
       const v = t.obj.view;
       if (!v) continue;
-      const cfg = t.obj.config || {};
       if (t.desc.topAnchor) {
         // saved.x/y трактуем как engine's config.position offsets для
         // absolute+align (top-center). Пишем в config и зовём applyPosition()
         // — engine сам корректно считает с учётом stage rotation в landscape.
-        if (cfg.position) {
-          cfg.position.x = e.x;
-          cfg.position.y = e.y;
+        const tcfg = t.obj.config || {};
+        if (tcfg.position) {
+          tcfg.position.x = e.x;
+          tcfg.position.y = e.y;
         }
-        if (cfg.position_portrait) {
-          cfg.position_portrait.x = e.x;
-          cfg.position_portrait.y = e.y;
+        if (tcfg.position_portrait) {
+          tcfg.position_portrait.x = e.x;
+          tcfg.position_portrait.y = e.y;
         }
         if (typeof t.obj.applyPosition === "function") {
           t.obj.applyPosition();
