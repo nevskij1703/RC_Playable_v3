@@ -5,6 +5,7 @@ import {
   BaseObject,
   Easing,
   ObjectLinks,
+  PIXI,
   Particle,
   ParticleEmitter,
   Rewards,
@@ -23,6 +24,7 @@ import Cola from "../../displayObjects/location/food/Cola";
 import Smoke from "../../displayObjects/location/Smoke";
 import Tortilla from "../../displayObjects/location/food/Tortilla";
 import EditorTool from "../EditorTool";
+import createLockBadge from "../../displayObjects/ui/LockBadge";
 
 const TUTORIAL_DELAY_FOR_NEW_PRODUCT = 2000;
 const SLOT_COUNT = 3;
@@ -31,6 +33,42 @@ const SPAWN_DELAY_MS = 600;
 
 const SLOT_CHARACTERS = ["italian_man", "pretty_woman", "old_grambler"];
 const SLOT_TOOLTIPS = [OBJECTS.tooltip1, OBJECTS.tooltip2, OBJECTS.tooltip3];
+
+// ---------- Roguelike upgrade system ----------
+// Игрок начинает с 1 тарелкой и 0 разблокированными топпингами; каждые 3
+// обслуженных клиента (раунды на 3/6/9/12/15/18) получает выбор из 2-х
+// апгрейдов. Категории: plate (1→3 max), topping (3 шт. — tomato/cucumbers/fry),
+// income (per-ingredient +2 за тир, бесконечно).
+const UPGRADE_INTERVAL = 3; // показ карточек после каждых N обслуженных
+const MAX_PLATES = 3;
+const TOPPING_KEYS = ["tomato", "cucumbers", "fry"]; // PRODUCTS_TYPES topping ingredients
+const INCOME_KEYS = ["meat", "tomato", "cucumbers", "fry", "cola"];
+const INCOME_STEP = 2; // монет добавляется к ингредиенту за каждую покупку
+
+const TOPPING_LINK_BY_KEY = {
+  tomato: OBJECTS.tomato,
+  cucumbers: OBJECTS.cucumbers,
+  fry: OBJECTS.fry,
+};
+
+// Иконки для карточек (берём из существующих ассетов).
+const CARD_ICONS = {
+  plate: "dish/plate",
+  meat: "dish/meat_11",
+  tomato: "dish/tomato_4",
+  cucumbers: "dish/cucumber_10",
+  fry: "dish/fry_10",
+  cola: "ui/coin", // у Cola нет отдельного icon-asset, используем монету как заместитель
+};
+
+const PRODUCT_LABELS = {
+  plate: "Тарелка",
+  meat: "Мясо",
+  tomato: "Помидоры",
+  cucumbers: "Огурцы",
+  fry: "Картошка",
+  cola: "Кола",
+};
 
 // Цены ингредиентов: лепёшка автоматически добавляется к каждому шаверма-блюду.
 const PRICES = {
@@ -42,11 +80,12 @@ const PRICES = {
   cola: 5,
 };
 
-function dishPrice(dish) {
-  if (dish.cola) return PRICES.cola;
-  // shaverma: tortilla (база) + сумма ингредиентов
+function dishPrice(dish, boosts) {
+  const b = boosts || {};
+  if (dish.cola) return PRICES.cola + (b.cola || 0);
+  // shaverma: tortilla (база) + сумма ингредиентов с бустами
   let sum = PRICES.tortilla;
-  for (const p of dish.products) sum += PRICES[p] || 0;
+  for (const p of dish.products) sum += (PRICES[p] || 0) + (b[p] || 0);
   return sum;
 }
 
@@ -140,7 +179,19 @@ export default class PlayableController extends BaseObject {
   setupComponents() {
     this.tutorial = new Tutorial(ObjectLinks.get(OBJECTS.tutorialFinger));
 
-    this.emptyDishes = [OBJECTS.dish1, OBJECTS.dish2, OBJECTS.dish3];
+    // ---------- Roguelike state ----------
+    // Стартуем с 1 тарелкой; dish2/dish3 заблокированы пока игрок не
+    // купит апгрейд. Топпинги (tomato/cucumbers/fry) тоже стартуют
+    // заблокированными — игрок может готовить только meat-шаверму и колу.
+    this.unlockedPlateCount = 1;
+    this.lockedDishes = [OBJECTS.dish2, OBJECTS.dish3];
+    this.emptyDishes = [OBJECTS.dish1];
+
+    this.unlockedToppings = new Set();
+    this.incomeBoosts = { meat: 0, tomato: 0, cucumbers: 0, fry: 0, cola: 0 };
+    this.upgradeRoundIndex = 0;
+    this.upgradeOverlayActive = false;
+
     this.currentDishes = [];
     this.completedDishesCount = 0;
     this.buyersContainer = ObjectLinks.get(OBJECTS.buyers);
@@ -151,12 +202,12 @@ export default class PlayableController extends BaseObject {
     this.totalSpawned = 0;
     this.spawningSlots = new Set();
 
-    // Пре-генерируем заказы для всех TOTAL_BUYERS — фиксируем сюжет уровня.
-    // spawnBuyerInSlot берёт заказ из очереди по индексу this.totalSpawned.
-    this.preGeneratedOrders = [];
-    for (let i = 0; i < TOTAL_BUYERS; i++) {
-      this.preGeneratedOrders.push(this.generateRandomOrder());
-    }
+    // Заказы генерируются lazy в spawnBuyerInSlot — состав DISH_TEMPLATES
+    // зависит от unlockedToppings, который меняется во время раунда.
+    // Pre-generation удалён: иначе заказ из начала уровня может содержать
+    // топпинг, который будет разблокирован только в середине игры.
+
+    this._setupLockedVisuals();
 
     // HUD: общее количество клиентов уровня. Целевая сумма монет НЕ
     // сообщается игроку — счётчик просто накапливает.
@@ -211,11 +262,19 @@ export default class PlayableController extends BaseObject {
 
   // ---------- Buyer queue / spawn ----------
 
-  generateRandomOrder() {
+  generateRandomOrder(opts) {
+    const strict = opts && opts.strictSolvable;
+    // Если strictSolvable — оставляем только шаблоны, у которых каждый
+    // продукт уже разблокирован (meat/cola всегда доступны).
+    const pool = strict
+      ? DISH_TEMPLATES.filter((t) => this._templateSolvable(t))
+      : DISH_TEMPLATES;
+    const safePool = pool.length ? pool : DISH_TEMPLATES;
+
     const dishCount = 1 + Math.floor(Math.random() * 3);
     const dishes = [];
     for (let i = 0; i < dishCount; i++) {
-      const t = DISH_TEMPLATES[Math.floor(Math.random() * DISH_TEMPLATES.length)];
+      const t = safePool[Math.floor(Math.random() * safePool.length)];
       dishes.push({
         products: t.products.slice(),
         dishKey: dishKeyForProducts(t.products),
@@ -228,6 +287,43 @@ export default class PlayableController extends BaseObject {
     return dishes;
   }
 
+  // Шаблон считается решаемым, если все его non-meat/non-cola продукты
+  // разблокированы. Cola и meat доступны всегда.
+  _templateSolvable(template) {
+    return template.products.every((p) => {
+      if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
+      return this.unlockedToppings.has(p);
+    });
+  }
+
+  // Считает сколько уже-активных клиентов имеют решаемые заказы (все блюда —
+  // в пределах разблокированных топпингов).
+  _countSolvableActive(excludeSlot) {
+    let n = 0;
+    for (let i = 0; i < this.activeBuyers.length; i++) {
+      if (i === excludeSlot) continue;
+      const b = this.activeBuyers[i];
+      if (!b) continue;
+      const ok = b.dishes.every((d) =>
+        d.products.every((p) => {
+          if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
+          return this.unlockedToppings.has(p);
+        })
+      );
+      if (ok) n++;
+    }
+    return n;
+  }
+
+  // Anti-deadlock инвариант: на экране ВСЕГДА минимум 2 решаемых клиента.
+  // Если уже ≥ 2 решаемых — новый клиент может быть с любым заказом.
+  // Иначе — форсим strictSolvable, чтобы новый сразу был решаемым.
+  pickOrderForSpawn(slotIndex) {
+    const solvableElsewhere = this._countSolvableActive(slotIndex);
+    const strict = solvableElsewhere < 2;
+    return this.generateRandomOrder({ strictSolvable: strict });
+  }
+
   hasMoreBuyers() {
     return this.totalSpawned < TOTAL_BUYERS;
   }
@@ -236,16 +332,17 @@ export default class PlayableController extends BaseObject {
     if (!this.hasMoreBuyers()) return;
     if (this.activeBuyers[slotIndex]) return;
     if (this.spawningSlots.has(slotIndex)) return;
+    // Пока показывается overlay апгрейда — не спавним новых клиентов.
+    // hideUpgradeOverlay() пройдётся по пустым слотам и заполнит их.
+    if (this.upgradeOverlayActive) return;
 
     this.spawningSlots.add(slotIndex);
 
     const characterName = SLOT_CHARACTERS[slotIndex];
     const character = this.buyersContainer[characterName];
     const tooltip = ObjectLinks.get(SLOT_TOOLTIPS[slotIndex]);
-    // Берём заранее сгенерированный заказ (см. setupComponents).
-    const dishes =
-      (this.preGeneratedOrders && this.preGeneratedOrders[this.totalSpawned]) ||
-      this.generateRandomOrder();
+    // Lazy-генерация с anti-deadlock инвариантом (2+ решаемых клиента).
+    const dishes = this.pickOrderForSpawn(slotIndex);
 
     tooltip.resetForReuse();
     tooltip.updateIcons(0);
@@ -707,15 +804,19 @@ export default class PlayableController extends BaseObject {
     this.currentDishes.forEach((dish) => dish.updateInteractive("dynamic"));
   }
 
-  // Топинги всегда оставляем кликабельными — smart-cooking gate работает
-  // в момент тапа в сценарии `addFood`, где проверяется canPickTopping и
-  // показывается cross при отказе. Полагаться на закешированный lock-state
-  // оказалось хрупко (рассинхрон при быстрых тапах / спавнах клиентов).
+  // Топпинги, разблокированные через апгрейд, всегда кликабельны —
+  // smart-cooking gate проверяет валидность в момент тапа. Заблокированные
+  // (до соответствующего апгрейда) держим в auto, чтобы тап игнорировался.
   updateProductsInteractive() {
     [PRODUCTS_TYPES.tomato, PRODUCTS_TYPES.cucumbers, PRODUCTS_TYPES.fry].forEach(
       (topping) => {
         const obj = ObjectLinks.get(topping);
-        if (obj) obj.updateInteractive("dynamic");
+        if (!obj) return;
+        if (this.unlockedToppings && !this.unlockedToppings.has(topping)) {
+          obj.updateInteractive("auto");
+        } else {
+          obj.updateInteractive("dynamic");
+        }
       }
     );
   }
@@ -849,9 +950,334 @@ export default class PlayableController extends BaseObject {
     const hud = ObjectLinks.get(OBJECTS.hudPanel);
     if (hud && buyer) {
       let sum = 0;
-      for (const d of buyer.dishes) sum += dishPrice(d);
+      for (const d of buyer.dishes) sum += dishPrice(d, this.incomeBoosts);
       hud.addClient();
       setTimeout(() => hud.addCoins(sum), 480);
+    }
+
+    // Триггер апгрейда: каждые UPGRADE_INTERVAL обслуженных, кроме самого
+    // последнего клиента (после 20-го уходим в стор без апгрейда).
+    setTimeout(() => {
+      if (
+        this.totalServed > 0 &&
+        this.totalServed < TOTAL_BUYERS &&
+        this.totalServed % UPGRADE_INTERVAL === 0
+      ) {
+        this.showUpgradeOverlay();
+      }
+    }, 1100);
+  }
+
+  // ---------- Roguelike upgrades ----------
+
+  // Setup стартовых визуалов: заблокированные тарелки и топпинги
+  // полупрозрачны и помечены замком. Топпинги ещё и не реагируют на тап.
+  // Бейджи и dim-плашки рисуются как siblings топпингов в table-view —
+  // alpha-каскад от родителя не гасит их.
+  _setupLockedVisuals() {
+    this._lockBadges = []; // храним для удаления при апгрейде
+
+    const tableObj = ObjectLinks.get(OBJECTS.table);
+    if (!tableObj || !tableObj.view) return;
+
+    // Тарелки 2 и 3: белые тарелки на столе нарисованы на спрайте table.png
+    // (статичная часть). Покрываем их dim-кругом + замком в Layer table.
+    const dishPositions = {
+      [OBJECTS.dish2]: { x: 68, y: -105 },
+      [OBJECTS.dish3]: { x: 198, y: -105 },
+    };
+    for (const linkID of this.lockedDishes) {
+      const pos = dishPositions[linkID];
+      if (!pos) continue;
+      const dim = new PIXI.Graphics();
+      dim.beginFill(0x000000, 0.4);
+      dim.drawCircle(pos.x, pos.y, 50);
+      dim.endFill();
+      tableObj.view.addChild(dim);
+
+      const badge = createLockBadge(34);
+      badge.position.set(pos.x, pos.y);
+      tableObj.view.addChild(badge);
+
+      this._lockBadges.push({ kind: "plate", linkID, badge, dim });
+    }
+
+    // Топпинги: tomato/cucumbers/fry — Food-контейнеры. Делаем сам контейнер
+    // полупрозрачным (alpha 0.25) и блокируем интерактив. Бейдж ставим как
+    // sibling в table.view, чтобы он остался непрозрачным.
+    const toppingPositions = {
+      tomato: { x: -66, y: 8 },
+      fry: { x: 41, y: 6 },
+      cucumbers: { x: 148, y: 5 },
+    };
+    for (const key of TOPPING_KEYS) {
+      const linkID = TOPPING_LINK_BY_KEY[key];
+      const obj = ObjectLinks.get(linkID);
+      if (!obj || !obj.view) continue;
+      obj.view.alpha = 0.25;
+      if (typeof obj.updateInteractive === "function") {
+        obj.updateInteractive("auto");
+      }
+
+      const pos = toppingPositions[key];
+      if (!pos) continue;
+      const badge = createLockBadge(34);
+      badge.position.set(pos.x, pos.y);
+      tableObj.view.addChild(badge);
+
+      this._lockBadges.push({ kind: "topping", key, badge, obj });
+    }
+  }
+
+  // Алгоритм выбора 2-х карточек: сначала определяем доступные категории,
+  // потом подбираем 2 разных. Edge case (всё максилось) → 2 income разных
+  // ингредиентов.
+  pickUpgradeCards() {
+    const plateAvail = this.unlockedPlateCount < MAX_PLATES;
+    const lockedToppingKeys = TOPPING_KEYS.filter(
+      (k) => !this.unlockedToppings.has(k)
+    );
+    const toppingAvail = lockedToppingKeys.length > 0;
+
+    // Доступные ingredient-keys для income (только разблокированные +
+    // всегда meat и cola).
+    const incomeIngredients = INCOME_KEYS.filter((k) => {
+      if (k === "meat" || k === "cola") return true;
+      return this.unlockedToppings.has(k);
+    });
+
+    const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    const buildPlateCard = () => ({
+      type: "plate",
+      productKey: "plate",
+      label: "+1 порция",
+      sub: `${this.unlockedPlateCount} → ${this.unlockedPlateCount + 1}`,
+      iconKey: CARD_ICONS.plate,
+      badge: "+1",
+      accentColor: 0x7561c8,
+      apply: () => this.applyPlateUpgrade(),
+    });
+
+    const buildToppingCard = () => {
+      const k = pickRandom(lockedToppingKeys);
+      return {
+        type: "topping",
+        productKey: k,
+        label: PRODUCT_LABELS[k] || k,
+        sub: "теперь доступно",
+        iconKey: CARD_ICONS[k],
+        badge: "NEW",
+        accentColor: 0xe07a2a,
+        apply: () => this.applyToppingUpgrade(k),
+      };
+    };
+
+    const buildIncomeCard = (excludeKey) => {
+      const pool = incomeIngredients.filter((k) => k !== excludeKey);
+      if (!pool.length) return null;
+      const k = pickRandom(pool);
+      const cur = this.incomeBoosts[k] || 0;
+      return {
+        type: "income",
+        productKey: k,
+        label: `${PRODUCT_LABELS[k] || k}`,
+        sub: `+${cur} → +${cur + INCOME_STEP} монет`,
+        iconKey: CARD_ICONS[k],
+        badge: `+${INCOME_STEP}`,
+        accentColor: 0x4fa8e0,
+        apply: () => this.applyIncomeUpgrade(k),
+      };
+    };
+
+    const cats = [];
+    if (plateAvail) cats.push("plate");
+    if (toppingAvail) cats.push("topping");
+    cats.push("income"); // всегда
+
+    if (cats.length >= 2) {
+      // Веса: топпинги/тарелки приоритетнее income (чтобы игрок успел
+      // открыть весь контент перед тем, как начнёт качать только цены).
+      const weighted = cats.flatMap((c) =>
+        c === "income" ? [c] : [c, c]
+      );
+      // Берём 2 РАЗНЫЕ категории.
+      const first = pickRandom(weighted);
+      const remaining = cats.filter((c) => c !== first);
+      const second = pickRandom(remaining);
+
+      const buildOne = (cat, exclude) => {
+        if (cat === "plate") return buildPlateCard();
+        if (cat === "topping") return buildToppingCard();
+        return buildIncomeCard(exclude);
+      };
+      const c1 = buildOne(first, null);
+      const c2 = buildOne(second, c1 && c1.productKey);
+      return [c1, c2].filter(Boolean);
+    }
+
+    // Только income доступен (всё разблокировано) → 2 income разных
+    // ингредиентов. Защита: если incomeIngredients < 2, дублируем единственный.
+    const c1 = buildIncomeCard(null);
+    const c2 = buildIncomeCard(c1 && c1.productKey);
+    return [c1, c2].filter(Boolean);
+  }
+
+  applyPlateUpgrade() {
+    if (this.unlockedPlateCount >= MAX_PLATES) return;
+    if (!this.lockedDishes.length) return;
+    const linkID = this.lockedDishes.shift();
+    this.emptyDishes.push(linkID);
+    this.unlockedPlateCount++;
+
+    // Убрать замок и dim для этой тарелки.
+    this._lockBadges = this._lockBadges.filter((entry) => {
+      if (entry.kind === "plate" && entry.linkID === linkID) {
+        if (entry.badge && entry.badge.parent) entry.badge.parent.removeChild(entry.badge);
+        if (entry.dim && entry.dim.parent) entry.dim.parent.removeChild(entry.dim);
+        return false;
+      }
+      return true;
+    });
+
+    // canTapTortilla теперь true — обновим интерактив тортильи.
+    this.updateTortillaInteractive();
+  }
+
+  applyToppingUpgrade(key) {
+    if (this.unlockedToppings.has(key)) return;
+    this.unlockedToppings.add(key);
+
+    const linkID = TOPPING_LINK_BY_KEY[key];
+    const obj = ObjectLinks.get(linkID);
+    if (obj && obj.view) {
+      // Анимация раскрытия: alpha 0.25 → 1 + bounce. Анимация на baseObject
+      // через proxy alpha/scale → view (как делает HudPanel._bounce).
+      new Animation(obj, {
+        from: { alpha: 0.25, scale: { x: 0.85, y: 0.85 } },
+        to: { alpha: 1, scale: { x: 1, y: 1 } },
+        duration: 320,
+        easing: Easing.Back.Out,
+        autoStart: true,
+        onComplete: () => {
+          // Гарантируем финальные значения (на случай прерванной анимации).
+          obj.view.alpha = 1;
+          obj.view.scale.set(1, 1);
+        },
+      });
+      // Восстанавливаем интерактив (Food.unlock через updateInteractive).
+      if (typeof obj.updateInteractive === "function") {
+        obj.updateInteractive("dynamic");
+      }
+    }
+
+    this._lockBadges = this._lockBadges.filter((entry) => {
+      if (entry.kind === "topping" && entry.key === key) {
+        if (entry.badge && entry.badge.parent) entry.badge.parent.removeChild(entry.badge);
+        return false;
+      }
+      return true;
+    });
+
+    // Обновим matching gate / интерактивы.
+    this.updateProductsInteractive();
+    this.updateTortillaInteractive();
+  }
+
+  applyIncomeUpgrade(key) {
+    if (!(key in this.incomeBoosts)) return;
+    this.incomeBoosts[key] += INCOME_STEP;
+  }
+
+  // ---------- Show / hide overlay ----------
+
+  showUpgradeOverlay() {
+    if (this.upgradeOverlayActive) return;
+    const overlay = ObjectLinks.get(OBJECTS.upgradeOverlay);
+    if (!overlay || typeof overlay.show !== "function") return;
+
+    const cards = this.pickUpgradeCards();
+    if (!cards || cards.length < 2) return;
+
+    this.upgradeOverlayActive = true;
+    this.upgradeRoundIndex++;
+    this.pauseTutorial();
+
+    // Подписка на выбор. Ставим один раз и снимаем после срабатывания.
+    if (!this._upgradeChosenBound) {
+      this._upgradeChosenBound = true;
+      overlay.onChosen(() => this.hideUpgradeOverlay());
+    }
+
+    overlay.show(cards);
+  }
+
+  hideUpgradeOverlay() {
+    if (!this.upgradeOverlayActive) return;
+    this.upgradeOverlayActive = false;
+
+    // Спавним клиентов в пустых слотах (спавны во время паузы подавлялись).
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      if (!this.activeBuyers[i] && this.hasMoreBuyers()) {
+        // Небольшой stagger чтобы не появились все одновременно.
+        setTimeout(() => this.spawnBuyerInSlot(i, false), i * 220);
+      }
+    }
+
+    // Если на экране 0 решаемых клиентов — мутируем заказ одного слота
+    // в strict-solvable, чтобы игрок не висел в deadlock.
+    this._repairUnsolvableSlots();
+
+    // Восстановим tutorial (если есть открытые заказы).
+    setTimeout(() => this.updateTutorial(), 600);
+  }
+
+  _repairUnsolvableSlots() {
+    // Считаем решаемых среди активных. Если 0 — форсим первый встретившийся
+    // слот стать решаемым, перегенерируя его dish.products + обновив tooltip.
+    let solvable = 0;
+    let firstUnsolvable = null;
+    for (let i = 0; i < this.activeBuyers.length; i++) {
+      const b = this.activeBuyers[i];
+      if (!b) continue;
+      const ok = b.dishes.every((d) =>
+        d.products.every((p) => {
+          if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
+          return this.unlockedToppings.has(p);
+        })
+      );
+      if (ok) solvable++;
+      else if (!firstUnsolvable) firstUnsolvable = b;
+    }
+    if (solvable >= 1) return;
+    if (!firstUnsolvable) return;
+
+    // Перегенерируем заказ с strict-solvable и применяем к первому слоту.
+    const newDishes = this.generateRandomOrder({ strictSolvable: true });
+    firstUnsolvable.dishes = newDishes;
+    const tooltip = firstUnsolvable.tooltip;
+    if (!tooltip) return;
+    const orderGroup =
+      tooltip.container &&
+      tooltip.container.icons &&
+      tooltip.container.icons.children.find((c) => c.visible);
+    if (!orderGroup || !orderGroup.children) return;
+    const Y_LAYOUT = { 1: [175], 2: [110, 245], 3: [70, 175, 280] };
+    const ys = Y_LAYOUT[newDishes.length] || [175];
+    newDishes.forEach((dish, i) => {
+      const slot = orderGroup.children[i];
+      if (slot && slot.baseObject && slot.baseObject.setProducts) {
+        slot.baseObject.setProducts(dish.products);
+        slot.position.y = ys[i];
+        dish.slotRef = slot.baseObject;
+      }
+    });
+    // Гасим лишние слоты (если новый заказ короче).
+    for (let i = newDishes.length; i < orderGroup.children.length; i++) {
+      const slot = orderGroup.children[i];
+      if (slot && slot.baseObject && slot.baseObject.reset) {
+        slot.baseObject.reset();
+      }
     }
   }
 

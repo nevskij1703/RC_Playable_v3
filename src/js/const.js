@@ -80,6 +80,7 @@ export const OBJECTS = {
   tooltip3: "tooltip3",
 
   crossPopup: "crossPopup",
+  upgradeOverlay: "upgradeOverlay",
 
   hudPanel: "hudPanel",
 

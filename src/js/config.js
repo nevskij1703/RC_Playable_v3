@@ -16,6 +16,7 @@ import {
 import { OBJECTS } from "./const";
 import Location from "./displayObjects/location/Location";
 import HudPanel from "./displayObjects/ui/HudPanel";
+import UpgradeOverlay from "./displayObjects/ui/UpgradeOverlay";
 import PlayableController from "./objects/v1/PlayableController";
 export default {
   children: [
@@ -202,6 +203,16 @@ export default {
           class: ButtonMute,
           adaptivePosition: true,
           position: { absolute: true, align: { x: 0, y: 1 }, x: 50, y: 30 },
+        },
+
+        // Оверлей выбора апгрейда. Появляется после каждых 3-х обслуженных
+        // клиентов (рогалик-лит): backdrop + 2 карточки на выбор. Должен
+        // быть последним в children, чтобы рендериться поверх всего UI.
+        {
+          linkID: OBJECTS.upgradeOverlay,
+          class: UpgradeOverlay,
+          adaptivePosition: true,
+          position: { absolute: true, centered: true },
         },
       ],
     },
