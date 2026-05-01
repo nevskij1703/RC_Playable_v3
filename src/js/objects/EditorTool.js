@@ -329,14 +329,20 @@ export default class EditorTool {
     stage.on("pointerup", this._stageUp);
     stage.on("pointerupoutside", this._stageUp);
 
-    // Подсветка для каждого таргета — видно, что доступно для перемещения.
+    // Overlay-контейнер поверх всех спрайтов сцены. Каждый кадр копирует
+    // worldTransform таргетов в свои дочерние группы — рамка/лейбл всегда
+    // видны независимо от наложений UI и окружения.
+    this._overlay = new PIXI.Container();
+    this._overlay.eventMode = "none";
+    stage.addChild(this._overlay);
+
     this._outlines = [];
     for (const t of this.targets) {
       const v = t.obj.view;
       const isCharacter = !!t.desc.child;
+
       const outline = new PIXI.Graphics();
-      outline.lineStyle(2, isCharacter ? 0xff8a4d : 0x4fa8e0, 0.9);
-      // Рамка по getLocalBounds или generous fallback.
+      outline.lineStyle(3, isCharacter ? 0xff8a4d : 0x4fa8e0, 1);
       const b = v.getLocalBounds && v.getLocalBounds();
       let rx, ry, rw, rh;
       if (b && b.width > 8 && b.height > 8) {
@@ -359,10 +365,7 @@ export default class EditorTool {
       }
       outline.drawRoundedRect(rx, ry, rw, rh, 8);
       outline.eventMode = "none";
-      v.addChild(outline);
 
-      // Текстовая метка с именем таргета. Для tooltip-ов добавляем "→ owner",
-      // чтобы было видно, какому клиенту принадлежит этот бабл.
       const labelText = t.desc.labelOwner
         ? `${t.desc.id} → ${t.desc.labelOwner}`
         : t.desc.id;
@@ -378,9 +381,24 @@ export default class EditorTool {
       label.x = rx + rw / 2;
       label.y = ry - 4;
       label.eventMode = "none";
-      v.addChild(label);
-      this._outlines.push({ t, outline, label });
+
+      // Группа в overlay — её локальный transform каждый кадр становится
+      // равным worldTransform таргета (минус stage-WT), так что визуально
+      // позиция/масштаб совпадают с таргетом, но рендер идёт поверх.
+      const group = new PIXI.Container();
+      group.eventMode = "none";
+      group.addChild(outline);
+      group.addChild(label);
+      this._overlay.addChild(group);
+
+      this._outlines.push({ t, group, outline, label });
     }
+
+    // Ticker для синхронизации трансформов overlay-групп с таргетами.
+    const ticker = window.application.renderer.ticker;
+    this._overlayTickerFn = () => this._syncOverlay();
+    if (ticker) ticker.add(this._overlayTickerFn);
+    this._syncOverlay();
 
     this._wheelFn = (e) => this._onWheel(e);
     document.addEventListener("wheel", this._wheelFn, { passive: false });
@@ -388,6 +406,34 @@ export default class EditorTool {
     // Селектор ratio-букетов и блок параметров.
     this._buildBucketSelector();
     this._buildParamsBlock();
+  }
+
+  // Каждый кадр: копируем worldTransform таргетов в overlay-группы, чтобы
+  // рамки/лейблы рендерились в той же позиции, что и таргеты, но поверх.
+  // Формула: group.localTransform = inv(overlay.parent.WT) * target.WT
+  // (так effective worldTransform group равен target.worldTransform).
+  _syncOverlay() {
+    if (!this._outlines || !this._overlay) return;
+    const ovParent = this._overlay.parent;
+    if (!ovParent) return;
+    // Поддерживаем overlay в самом конце детей родителя — гарантия topmost.
+    if (ovParent.children[ovParent.children.length - 1] !== this._overlay) {
+      ovParent.addChild(this._overlay);
+    }
+    const invParent = new PIXI.Matrix()
+      .copyFrom(ovParent.worldTransform)
+      .invert();
+    const tmp = new PIXI.Matrix();
+    for (const o of this._outlines) {
+      const v = o.t.obj.view;
+      if (!v || !v.parent) {
+        o.group.visible = false;
+        continue;
+      }
+      o.group.visible = v.visible !== false;
+      tmp.copyFrom(invParent).append(v.worldTransform);
+      o.group.transform.setFromMatrix(tmp);
+    }
   }
 
   // Stage-level pointerdown: ищет ближайший таргет к точке клика
@@ -423,17 +469,17 @@ export default class EditorTool {
       stage.off("pointerupoutside", this._stageUp);
       this._stageDown = this._stageMove = this._stageUp = null;
     }
-    if (this._outlines) {
-      for (const { outline, label } of this._outlines) {
-        if (outline.parent) outline.parent.removeChild(outline);
-        outline.destroy && outline.destroy();
-        if (label) {
-          if (label.parent) label.parent.removeChild(label);
-          label.destroy && label.destroy();
-        }
-      }
-      this._outlines = null;
+    if (this._overlayTickerFn) {
+      const ticker = window.application.renderer.ticker;
+      if (ticker) ticker.remove(this._overlayTickerFn);
+      this._overlayTickerFn = null;
     }
+    if (this._overlay) {
+      if (this._overlay.parent) this._overlay.parent.removeChild(this._overlay);
+      this._overlay.destroy({ children: true });
+      this._overlay = null;
+    }
+    this._outlines = null;
     if (this._wheelFn) {
       document.removeEventListener("wheel", this._wheelFn);
       this._wheelFn = null;
