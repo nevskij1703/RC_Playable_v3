@@ -1,5 +1,6 @@
 import { ObjectLinks } from "PlayableAdsEngine";
 import { OBJECTS } from "../const";
+import { HUD_PANEL_TOP_OFFSET } from "../displayObjects/ui/HudPanel";
 
 const STORAGE_KEY = "rcp_hud_offset_v1";
 
@@ -25,9 +26,9 @@ export default class HudOffsetTool {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       const v = parseFloat(raw);
-      return Number.isFinite(v) ? v : 0;
+      return Number.isFinite(v) ? v : HUD_PANEL_TOP_OFFSET;
     } catch (e) {
-      return 0;
+      return HUD_PANEL_TOP_OFFSET;
     }
   }
 
@@ -55,7 +56,7 @@ export default class HudOffsetTool {
       '<button class="hot-step" data-d="10">+10</button>' +
       "</div>" +
       '<div id="hot-info" style="margin-bottom:8px;font-size:11px;color:#666;line-height:1.4;"></div>' +
-      '<button id="hot-reset" style="display:block;width:100%;padding:6px 10px;margin-bottom:6px;background:#999;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сбросить (offset=0)</button>' +
+      '<button id="hot-reset" style="display:block;width:100%;padding:6px 10px;margin-bottom:6px;background:#999;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сбросить к дефолту</button>' +
       '<button id="hot-export" style="display:block;width:100%;padding:7px 10px;background:#7561C8;color:#fff;border:none;border-radius:5px;cursor:pointer;">Экспорт JSON</button>' +
       '<textarea id="hot-dump" readonly style="display:none;width:100%;height:90px;margin-top:8px;font:11px monospace;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;resize:vertical;"></textarea>' +
       '<button id="hot-copy" style="display:none;width:100%;padding:6px 10px;margin-top:6px;background:#4FA8E0;color:#fff;border:none;border-radius:5px;cursor:pointer;">Скопировать в буфер</button>' +
@@ -98,7 +99,8 @@ export default class HudOffsetTool {
       if (Number.isFinite(v)) this._setOffset(v, /*skipInputUpdate=*/ true);
     };
 
-    document.getElementById("hot-reset").onclick = () => this._setOffset(0);
+    document.getElementById("hot-reset").onclick = () =>
+      this._setOffset(HUD_PANEL_TOP_OFFSET);
     document.getElementById("hot-export").onclick = () => this._export();
     this.copyBtn.onclick = () => this._copyDump();
   }
