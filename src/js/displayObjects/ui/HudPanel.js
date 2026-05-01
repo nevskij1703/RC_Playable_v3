@@ -1,9 +1,12 @@
 import {
   Animation,
+  APPLICATION_EVENTS,
   Container,
   Easing,
+  ObjectLinks,
   PIXI,
 } from "PlayableAdsEngine";
+import { OBJECTS } from "../../const";
 
 const PANEL_W = 340;
 const PANEL_H = 56;
@@ -34,6 +37,57 @@ export default class HudPanel extends Container {
     this._buildCoinSection();
     this._buildClientSection();
     this._render();
+
+    // Гарантия: HUD никогда не оказывается выше верха background-картинки.
+    // Engine'овский adaptivePosition прибивает HUD к верху канваса, но на
+    // ультра-вертикальных аспектах (ratio > 2.05 → aspect-clamp + чёрные
+    // полосы) фон не доходит до верха, и HUD оседает в чёрной зоне.
+    // Снапаем под верх стены с отступом 30px. На landscape/squarish
+    // bounds.y ≤ 8 (фон закрывает верх) — раннеритёрн, не вмешиваемся.
+    if (window.application && window.application.eventEmitter) {
+      window.application.eventEmitter.on(
+        APPLICATION_EVENTS.playableResize,
+        () => this._scheduleAlign()
+      );
+    }
+    this._scheduleAlign();
+  }
+
+  // Несколько отложенных попыток — back-спрайт может быть ещё не загружен
+  // на ранних тиках. 160/400/900/1800 покрывают и быструю, и медленную
+  // загрузку. _alignBelowBackground раннеритёрнит если HUD уже на месте.
+  _scheduleAlign() {
+    if (this._alignTimers) this._alignTimers.forEach(clearTimeout);
+    this._alignTimers = [160, 400, 900, 1800].map((ms) =>
+      setTimeout(() => this._alignBelowBackground(), ms)
+    );
+  }
+
+  _alignBelowBackground() {
+    const v = this.view;
+    if (!v || !v.parent) return;
+    const back = this._findBackSprite();
+    if (!back) return;
+    const bounds = back.getBounds();
+    if (!bounds || bounds.height < 50) return;
+    if (bounds.y <= 8) return;
+    const halfPanel = (PANEL_H / 2 + 4) * v.scale.y;
+    const hudTopWorldY = v.worldTransform.ty - halfPanel;
+    if (hudTopWorldY >= bounds.y - 4) return;
+    const desiredWorldY = bounds.y + 30 + halfPanel;
+    const local = v.parent.toLocal({ x: 0, y: desiredWorldY });
+    v.position.y = local.y;
+  }
+
+  _findBackSprite() {
+    const loc = ObjectLinks.get(OBJECTS.location);
+    const root = loc && loc.view;
+    if (!root || !root.children) return null;
+    const bg = root.children[0];
+    if (!bg || !bg.children) return null;
+    const back = bg.children[0];
+    if (!back || !back._texture) return null;
+    return back;
   }
 
   // ---------- Drawing ----------
