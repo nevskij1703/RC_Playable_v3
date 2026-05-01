@@ -31,7 +31,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -310, y: -433, scaleX: 0.691, scaleY: 0.691 },
     tooltip2: { x: -85, y: -430, scaleX: 0.692, scaleY: 0.692 },
     tooltip3: { x: 159, y: -432, scaleX: 0.691, scaleY: 0.691 },
-    hudPanel: { x: 0, y: 40, scaleX: 0.815, scaleY: 0.815 },
+    hudPanel: { x: 0, y: -355, scaleX: 0.815, scaleY: 0.815 },
   },
   // Классический горизонтальный десктоп (16:9, 16:10, 5:3, 3:2)
   desktop: {
@@ -41,7 +41,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -305, y: -409, scaleX: 0.658, scaleY: 0.658 },
     tooltip2: { x: -90, y: -410, scaleX: 0.656, scaleY: 0.656 },
     tooltip3: { x: 158, y: -409, scaleX: 0.625, scaleY: 0.625 },
-    hudPanel: { x: 0, y: 40, scaleX: 0.815, scaleY: 0.815 },
+    hudPanel: { x: 0, y: -355, scaleX: 0.815, scaleY: 0.815 },
   },
   // Почти квадратный экран (4:3 лэндскейп)
   square: {
@@ -51,7 +51,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -321, y: -412, scaleX: 0.682, scaleY: 0.682 },
     tooltip2: { x: -104, y: -411, scaleX: 0.691, scaleY: 0.691 },
     tooltip3: { x: 151, y: -412, scaleX: 0.692, scaleY: 0.692 },
-    hudPanel: { x: 0, y: 40, scaleX: 1, scaleY: 1 },
+    hudPanel: { x: 0, y: -350, scaleX: 1, scaleY: 1 },
   },
   // 3:4 — вертикальный планшет
   tablet: {
@@ -61,7 +61,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -353, y: -544, scaleX: 0.93, scaleY: 0.93 },
     tooltip2: { x: -119, y: -540, scaleX: 0.93, scaleY: 0.93 },
     tooltip3: { x: 131, y: -538, scaleX: 0.932, scaleY: 0.932 },
-    hudPanel: { x: 0, y: 80, scaleX: 0.885, scaleY: 0.885 },
+    hudPanel: { x: 0, y: -363, scaleX: 0.885, scaleY: 0.885 },
   },
   // 9:16 — вертикальный телефон
   phone: {
@@ -71,7 +71,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -345, y: -517, scaleX: 0.842, scaleY: 0.842 },
     tooltip2: { x: -121, y: -516, scaleX: 0.837, scaleY: 0.837 },
     tooltip3: { x: 121, y: -517, scaleX: 0.844, scaleY: 0.844 },
-    hudPanel: { x: 3, y: 130, scaleX: 1.149, scaleY: 1.149 },
+    hudPanel: { x: 3, y: -356, scaleX: 1.149, scaleY: 1.149 },
   },
   // 9:21 — сверх-вытянутый вертикальный
   ultraTall: {
@@ -81,7 +81,7 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -119, y: -542, scaleX: 0.935, scaleY: 0.935 },
     tooltip2: { x: -356, y: -542, scaleX: 0.93, scaleY: 0.93 },
     tooltip3: { x: 129, y: -542, scaleX: 0.937, scaleY: 0.937 },
-    hudPanel: { x: 2, y: 160, scaleX: 1.34, scaleY: 1.34 },
+    hudPanel: { x: 2, y: -350, scaleX: 1.34, scaleY: 1.34 },
   },
 };
 
@@ -146,13 +146,15 @@ function migrate(stored) {
     const newKey = OLD_TO_NEW[k];
     if (newKey && !out[newKey]) out[newKey] = stored[k];
   }
-  // HUD изменил формат на topAnchor (config.position offset, малые
-  // положительные y). Старый формат — raw view.position в centered
-  // parent (большие отрицательные y). Чистим старые записи, чтобы
-  // дефолты подхватились корректно.
+  // HUD теперь якорится к ЦЕНТРУ канваса (align(0.5, 0.5)). Действительные
+  // y находятся в диапазоне ~ -380..-340 (точно ниже верха задней стены
+  // фона, который сидит на ~ -418 от center-y портрета). Чистим явно
+  // несовместимые саве-записи: top-anchor era (положительные y), а также
+  // старые raw-position сохранения, ставящие HUD выше задней стены
+  // (y < -390 → HUD центр почти у самого верха стены или выше).
   for (const bk of Object.keys(out)) {
     const e = out[bk] && out[bk].hudPanel;
-    if (e && typeof e.y === "number" && e.y < -50) {
+    if (e && typeof e.y === "number" && (e.y > 0 || e.y < -390)) {
       delete out[bk].hudPanel;
     }
   }
@@ -166,9 +168,11 @@ function migrate(stored) {
 // в PlayableController.js (zip по индексу). Tooltip "принадлежит" клиенту,
 // над которым он должен висеть. labelOwner используется для подписи в editor.
 //
-// topAnchor: true — координаты этого таргета сохраняются и применяются
-// относительно ВЕРХНЕГО КРАЯ канваса (y=0 = верх) и центральной вертикали
-// (x=0 = центр). Полезно для UI, привязанного к экрану, а не к сцене.
+// canvasAnchor: { x, y } — координаты этого таргета сохраняются и
+// применяются относительно align-точки на канвасе. Например {x:0.5, y:0.5}
+// привязывает к ЦЕНТРУ канваса (полезно для UI, чьи опорные элементы фона
+// — например, верх стены — лежат на фиксированном смещении от центра
+// сцены). Без флага координаты — обычный view.position в parent-local.
 const TARGETS = [
   { id: "italian_man", child: "italian_man" },
   { id: "pretty_woman", child: "pretty_woman" },
@@ -176,12 +180,16 @@ const TARGETS = [
   { id: "tooltip1", linkID: OBJECTS.tooltip1, labelOwner: "italian_man" },
   { id: "tooltip2", linkID: OBJECTS.tooltip2, labelOwner: "pretty_woman" },
   { id: "tooltip3", linkID: OBJECTS.tooltip3, labelOwner: "old_grambler" },
-  { id: "hudPanel", linkID: OBJECTS.hudPanel, topAnchor: true },
+  {
+    id: "hudPanel",
+    linkID: OBJECTS.hudPanel,
+    canvasAnchor: { x: 0.5, y: 0.5 },
+  },
 ];
 
 // Точка в parent-local координатах, соответствующая align-якорю на канвасе
 // (например, верхняя центральная точка для align={0.5, 0}). Используется для
-// конверсии topAnchor coords ↔ view.position. Делегирует PIXI parent.toLocal,
+// конверсии canvasAnchor coords ↔ view.position. Делегирует PIXI parent.toLocal,
 // который корректно учитывает поворот стейджа в landscape.
 function getAlignLocal(view, alignX, alignY) {
   const r = window.application && window.application.renderer;
@@ -666,8 +674,8 @@ export default class EditorTool {
       if (!v) return;
       let xVal = v.position.x;
       let yVal = v.position.y;
-      if (t.desc.topAnchor) {
-        const off = getAlignLocal(v, 0.5, 0);
+      if (t.desc.canvasAnchor) {
+        const off = getAlignLocal(v, t.desc.canvasAnchor.x, t.desc.canvasAnchor.y);
         if (off) {
           xVal = v.position.x - off.x;
           yVal = v.position.y - off.y;
@@ -686,9 +694,13 @@ export default class EditorTool {
     if (!v) return;
     const val = parseFloat(inp.value);
     if (isNaN(val)) return;
-    if (t.desc.topAnchor) {
-      // Для topAnchor конвертим из engine's config-coords в parent-local.
-      const off = getAlignLocal(v, 0.5, 0) || { x: 0, y: 0 };
+    if (t.desc.canvasAnchor) {
+      // Для canvasAnchor конвертим из engine's config-coords в parent-local.
+      const off =
+        getAlignLocal(v, t.desc.canvasAnchor.x, t.desc.canvasAnchor.y) || {
+          x: 0,
+          y: 0,
+        };
       if (inp.dataset.prop === "x") v.position.x = val + off.x;
       else if (inp.dataset.prop === "y") v.position.y = val + off.y;
       else if (inp.dataset.prop === "s") {
@@ -785,10 +797,10 @@ export default class EditorTool {
       if (!v) continue;
       let xOut = v.position.x;
       let yOut = v.position.y;
-      if (t.desc.topAnchor) {
-        // saved.x/y = engine's config.position.x/y для absolute+align(0.5, 0):
-        // offsets от верхне-центральной точки канваса в parent-local coords.
-        const off = getAlignLocal(v, 0.5, 0);
+      if (t.desc.canvasAnchor) {
+        // saved.x/y = engine's config.position.x/y для absolute+align(canvasAnchor):
+        // offsets от align-точки канваса в parent-local coords.
+        const off = getAlignLocal(v, t.desc.canvasAnchor.x, t.desc.canvasAnchor.y);
         if (off) {
           xOut = v.position.x - off.x;
           yOut = v.position.y - off.y;
@@ -867,10 +879,11 @@ export default class EditorTool {
       if (!e) continue;
       const v = t.obj.view;
       if (!v) continue;
-      if (t.desc.topAnchor) {
-        // saved.x/y трактуем как engine's config.position offsets для
-        // absolute+align (top-center). Пишем в config и зовём applyPosition()
-        // — engine сам корректно считает с учётом stage rotation в landscape.
+      if (t.desc.canvasAnchor) {
+        // saved.x/y трактуем как offsets от align-точки канваса. Пишем в
+        // config (для пере-resize'ов) И напрямую в view.position — потому
+        // что engine кэширует Position.data в момент setup, и мутация
+        // config'а сама по себе на applyPosition() не влияет.
         const tcfg = t.obj.config || {};
         if (tcfg.position) {
           tcfg.position.x = e.x;
@@ -880,18 +893,13 @@ export default class EditorTool {
           tcfg.position_portrait.x = e.x;
           tcfg.position_portrait.y = e.y;
         }
-        if (typeof t.obj.applyPosition === "function") {
-          t.obj.applyPosition();
+        const off = getAlignLocal(v, t.desc.canvasAnchor.x, t.desc.canvasAnchor.y);
+        if (off) {
+          v.position.x = e.x + off.x;
+          v.position.y = e.y + off.y;
         } else {
-          // Fallback: ручная математика через alignLocal.
-          const off = getAlignLocal(v, 0.5, 0);
-          if (off) {
-            v.position.x = e.x + off.x;
-            v.position.y = e.y + off.y;
-          } else {
-            v.position.x = e.x;
-            v.position.y = e.y;
-          }
+          v.position.x = e.x;
+          v.position.y = e.y;
         }
         if (e.scaleX != null) {
           v.scale.x = e.scaleX;

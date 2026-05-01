@@ -1,9 +1,12 @@
 import {
   Animation,
+  APPLICATION_EVENTS,
   Container,
   Easing,
+  ObjectLinks,
   PIXI,
 } from "PlayableAdsEngine";
+import { OBJECTS } from "../../const";
 
 const PANEL_W = 340;
 const PANEL_H = 56;
@@ -34,6 +37,53 @@ export default class HudPanel extends Container {
     this._buildCoinSection();
     this._buildClientSection();
     this._render();
+
+    // Y привязываем к верху back-wall спрайта фона: его положение в стейдже
+    // зависит от Location.scale (включается на узких аспектах <1.49) и от
+    // MainContainer center, поэтому статичный y из конфига ломается на
+    // некоторых пропорциях. Принудительно прижимаем HUD под верх стены с
+    // фиксированным отступом — на любом aspect HUD остаётся в видимой зоне
+    // фона. X из конфига сохраняется (для горизонтального центра-tweak'а).
+    //
+    // Задержки: EditorTool.applyStoredLayout стартует с offset 200мс при
+    // init и 80мс на resize и перезаписывает view.position. Запускаемся
+    // позже — иначе наш align'у затрут bucket-defaults.
+    if (window.application && window.application.eventEmitter) {
+      window.application.eventEmitter.on(
+        APPLICATION_EVENTS.playableResize,
+        () => setTimeout(() => this._alignBelowBackground(), 160)
+      );
+    }
+    setTimeout(() => this._alignBelowBackground(), 350);
+  }
+
+  _alignBelowBackground() {
+    const v = this.view;
+    if (!v || !v.parent) return;
+    const back = this._findBackSprite();
+    if (!back) return;
+    const bounds = back.getBounds();
+    if (!bounds || bounds.height < 50) return;
+    // Видимый верх фона = top спрайта, но не выше канваса. В лэндскейпе
+    // back-wall шире/выше канваса, его реальный top уходит за y=0
+    // (off-canvas вверх) — тогда отсчитываем от верхнего края канваса.
+    const visibleTop = Math.max(bounds.y, 0);
+    const halfPanel = (PANEL_H / 2 + 4) * v.scale.y; // +4 — учёт нижней тени
+    const desiredWorldY = visibleTop + 30 + halfPanel;
+    const local = v.parent.toLocal({ x: 0, y: desiredWorldY });
+    v.position.y = local.y;
+  }
+
+  _findBackSprite() {
+    const loc = ObjectLinks.get(OBJECTS.location);
+    const root = loc && loc.view;
+    if (!root || !root.children) return null;
+    // Location → background (1й child) → back (1й child)
+    const bg = root.children[0];
+    if (!bg || !bg.children) return null;
+    const back = bg.children[0];
+    if (!back || !back._texture) return null;
+    return back;
   }
 
   // ---------- Drawing ----------

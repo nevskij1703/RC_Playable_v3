@@ -49,16 +49,21 @@ export default {
         },
 
         // Верхняя HUD-панель: монеты слева, обслуженные клиенты справа.
+        // Якорим к ЦЕНТРУ канваса (не к верхнему краю): MC центрирована на
+        // канвасе, поэтому смещение от center-y до back-wall top постоянно
+        // (~ -418 px в портрете). На вытянутых экранах HUD остаётся внутри
+        // фона, а не в чёрной зоне сверху — аналогично кнопке Install,
+        // которая сидит на полу у нижнего края.
         {
           linkID: OBJECTS.hudPanel,
           class: HudPanel,
           adaptivePosition: true,
-          position: { absolute: true, align: { x: 0.5, y: 0 }, x: 0, y: 40 },
+          position: { absolute: true, align: { x: 0.5, y: 0.5 }, x: 0, y: -355 },
           position_portrait: {
             absolute: true,
-            align: { x: 0.5, y: 0 },
+            align: { x: 0.5, y: 0.5 },
             x: 0,
-            y: 56,
+            y: -356,
           },
         },
 
