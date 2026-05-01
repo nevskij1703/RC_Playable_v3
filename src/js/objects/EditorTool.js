@@ -25,23 +25,23 @@ function isPortraitBucket(b) {
 const DEFAULT_LAYOUT = {
   // 21:9 и шире — сверхширокий горизонтальный
   ultraWide: {
-    italian_man: { x: -339, y: 205, scaleX: 1, scaleY: 1 },
+    italian_man: { x: -353, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -298, y: -409, scaleX: 0.658, scaleY: 0.658 },
-    tooltip2: { x: -81, y: -409, scaleX: 0.692, scaleY: 0.692 },
-    tooltip3: { x: 153, y: -410, scaleX: 0.691, scaleY: 0.691 },
-    hudPanel: { x: 0, y: -280, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: -310, y: -433, scaleX: 0.691, scaleY: 0.691 },
+    tooltip2: { x: -85, y: -430, scaleX: 0.692, scaleY: 0.692 },
+    tooltip3: { x: 159, y: -432, scaleX: 0.691, scaleY: 0.691 },
+    hudPanel: { x: 11, y: 30, scaleX: 0.815, scaleY: 0.815 },
   },
   // Классический горизонтальный десктоп (16:9, 16:10, 5:3, 3:2)
   desktop: {
-    italian_man: { x: -334, y: 205, scaleX: 1, scaleY: 1 },
+    italian_man: { x: -353, y: 201, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -294, y: -409, scaleX: 0.689, scaleY: 0.689 },
-    tooltip2: { x: -72, y: -409, scaleX: 0.692, scaleY: 0.692 },
-    tooltip3: { x: 157, y: -409, scaleX: 0.691, scaleY: 0.691 },
-    hudPanel: { x: 0, y: -280, scaleX: 0.993, scaleY: 0.993 },
+    tooltip1: { x: -305, y: -409, scaleX: 0.658, scaleY: 0.658 },
+    tooltip2: { x: -90, y: -410, scaleX: 0.656, scaleY: 0.656 },
+    tooltip3: { x: 158, y: -409, scaleX: 0.625, scaleY: 0.625 },
+    hudPanel: { x: 12, y: 31, scaleX: 0.815, scaleY: 0.815 },
   },
   // Почти квадратный экран (4:3 лэндскейп)
   square: {
@@ -51,37 +51,37 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -321, y: -412, scaleX: 0.682, scaleY: 0.682 },
     tooltip2: { x: -104, y: -411, scaleX: 0.691, scaleY: 0.691 },
     tooltip3: { x: 151, y: -412, scaleX: 0.692, scaleY: 0.692 },
-    hudPanel: { x: -21, y: -282, scaleX: 1, scaleY: 1 },
+    hudPanel: { x: -21, y: 38, scaleX: 1, scaleY: 1 },
   },
   // 3:4 — вертикальный планшет
   tablet: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -125, y: 118, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 124, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: 120, y: -504, scaleX: 0.935, scaleY: 0.935 },
-    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
-    hudPanel: { x: -4, y: -374, scaleX: 1.34, scaleY: 1.34 },
+    old_grambler: { x: 127, y: 112, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: -353, y: -544, scaleX: 0.93, scaleY: 0.93 },
+    tooltip2: { x: -119, y: -540, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3: { x: 131, y: -538, scaleX: 0.932, scaleY: 0.932 },
+    hudPanel: { x: -4, y: 40, scaleX: 0.885, scaleY: 0.885 },
   },
   // 9:16 — вертикальный телефон
   phone: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -140, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 125, y: 111, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: 134, y: -484, scaleX: 0.842, scaleY: 0.842 },
-    tooltip2: { x: -338, y: -487, scaleX: 0.837, scaleY: 0.837 },
-    tooltip3: { x: -115, y: -486, scaleX: 0.844, scaleY: 0.844 },
-    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
+    tooltip1: { x: -345, y: -517, scaleX: 0.842, scaleY: 0.842 },
+    tooltip2: { x: -121, y: -516, scaleX: 0.837, scaleY: 0.837 },
+    tooltip3: { x: 121, y: -517, scaleX: 0.844, scaleY: 0.844 },
+    hudPanel: { x: 0, y: 40, scaleX: 1.149, scaleY: 1.149 },
   },
   // 9:21 — сверх-вытянутый вертикальный
   ultraTall: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 140, y: 107, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: 124, y: -502, scaleX: 0.935, scaleY: 0.935 },
-    tooltip2: { x: -350, y: -504, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3: { x: -123, y: -504, scaleX: 0.937, scaleY: 0.937 },
-    hudPanel: { x: 2, y: -465, scaleX: 1.34, scaleY: 1.34 },
+    old_grambler: { x: 134, y: 114, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: -119, y: -542, scaleX: 0.935, scaleY: 0.935 },
+    tooltip2: { x: -356, y: -542, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3: { x: 129, y: -542, scaleX: 0.937, scaleY: 0.937 },
+    hudPanel: { x: 2, y: 56, scaleX: 1.34, scaleY: 1.34 },
   },
 };
 
@@ -155,6 +155,10 @@ function migrate(stored) {
 // Маппинг tooltipN → character соответствует SLOT_TOOLTIPS / SLOT_CHARACTERS
 // в PlayableController.js (zip по индексу). Tooltip "принадлежит" клиенту,
 // над которым он должен висеть. labelOwner используется для подписи в editor.
+//
+// topAnchor: true — координаты этого таргета сохраняются и применяются
+// относительно ВЕРХНЕГО КРАЯ канваса (y=0 = верх) и центральной вертикали
+// (x=0 = центр). Полезно для UI, привязанного к экрану, а не к сцене.
 const TARGETS = [
   { id: "italian_man", child: "italian_man" },
   { id: "pretty_woman", child: "pretty_woman" },
@@ -162,8 +166,23 @@ const TARGETS = [
   { id: "tooltip1", linkID: OBJECTS.tooltip1, labelOwner: "italian_man" },
   { id: "tooltip2", linkID: OBJECTS.tooltip2, labelOwner: "pretty_woman" },
   { id: "tooltip3", linkID: OBJECTS.tooltip3, labelOwner: "old_grambler" },
-  { id: "hudPanel", linkID: OBJECTS.hudPanel },
+  { id: "hudPanel", linkID: OBJECTS.hudPanel, topAnchor: true },
 ];
+
+// Высота канваса в системе координат UI-контейнера (он отцентрирован).
+// Используется для конверсии HUD top-anchor coords → view.position.
+function getCanvasH() {
+  const r = window.application && window.application.renderer;
+  if (!r) return 1500;
+  // PIXI v7: app.renderer.screen.height (в логических px). Плюс stage может
+  // быть повёрнут (-90 в landscape) — тогда screen ширина становится высотой
+  // в координатах сцены. Проще брать всегда max(screen.w, screen.h) — UI
+  // всегда живёт в портретной системе координат (длинная ось).
+  const app = r.app || r;
+  const screen = app.screen || app.renderer?.screen;
+  if (!screen) return 1500;
+  return Math.max(screen.width, screen.height);
+}
 
 // In-game редактор: чит-кнопка → перемещение объектов мышью + колесо для
 // масштаба + сохранение в localStorage и буфер обмена. На старте применяет
@@ -570,6 +589,7 @@ export default class EditorTool {
   _refreshParamsBlock() {
     const wrap = document.getElementById("ed-params");
     if (!wrap || wrap.style.display === "none") return;
+    const halfH = getCanvasH() / 2;
     wrap.querySelectorAll("input").forEach((inp) => {
       if (document.activeElement === inp) return; // не перезаписывать набираемое
       const t = this.targets.find((x) => x.desc.id === inp.dataset.id);
@@ -577,8 +597,11 @@ export default class EditorTool {
       const v = t.obj.view;
       if (!v) return;
       if (inp.dataset.prop === "x") inp.value = Math.round(v.position.x);
-      else if (inp.dataset.prop === "y") inp.value = Math.round(v.position.y);
-      else if (inp.dataset.prop === "s") inp.value = +v.scale.x.toFixed(3);
+      else if (inp.dataset.prop === "y") {
+        // Для topAnchor показываем y относительно верхнего края.
+        const yOut = t.desc.topAnchor ? v.position.y + halfH : v.position.y;
+        inp.value = Math.round(yOut);
+      } else if (inp.dataset.prop === "s") inp.value = +v.scale.x.toFixed(3);
     });
   }
 
@@ -590,8 +613,11 @@ export default class EditorTool {
     const val = parseFloat(inp.value);
     if (isNaN(val)) return;
     if (inp.dataset.prop === "x") v.position.x = val;
-    else if (inp.dataset.prop === "y") v.position.y = val;
-    else if (inp.dataset.prop === "s") {
+    else if (inp.dataset.prop === "y") {
+      // Для topAnchor пользовательский ввод — расстояние от верхнего края.
+      const halfH = getCanvasH() / 2;
+      v.position.y = t.desc.topAnchor ? val - halfH : val;
+    } else if (inp.dataset.prop === "s") {
       v.scale.x = val;
       v.scale.y = val;
     }
@@ -672,12 +698,18 @@ export default class EditorTool {
     const bucket = this._saveBucket();
     const data = migrate(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
     data[bucket] = data[bucket] || {};
+    const halfH = getCanvasH() / 2;
     for (const t of this.targets) {
       const v = t.obj.view;
       if (!v) continue;
+      // topAnchor: храним y относительно верхнего края (0 = top edge).
+      // Иначе храним raw view.position в parent-local space.
+      const yOut = t.desc.topAnchor
+        ? v.position.y + halfH
+        : v.position.y;
       data[bucket][t.desc.id] = {
         x: Math.round(v.position.x),
-        y: Math.round(v.position.y),
+        y: Math.round(yOut),
         scaleX: +v.scale.x.toFixed(3),
         scaleY: +v.scale.y.toFixed(3),
       };
@@ -743,13 +775,16 @@ export default class EditorTool {
 
     if (!this.targets.length) this.collectTargets();
     const isPortrait = isPortraitBucket(bucket);
+    const halfH = getCanvasH() / 2;
     for (const t of this.targets) {
       const e = layout[t.desc.id];
       if (!e) continue;
       const v = t.obj.view;
       if (!v) continue;
+      // topAnchor: y хранится от верхнего края, конвертим в parent-local.
+      const yIn = t.desc.topAnchor ? e.y - halfH : e.y;
       v.position.x = e.x;
-      v.position.y = e.y;
+      v.position.y = yIn;
       if (e.scaleX != null) {
         v.scale.x = e.scaleX;
         v.scale.y = e.scaleY;
