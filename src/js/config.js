@@ -49,10 +49,6 @@ export default {
         },
 
         // Верхняя HUD-панель: монеты слева, обслуженные клиенты справа.
-        // Базовая позиция — top-anchor с малым positive y; bucket-layout
-        // дотюнивается под каждый ratio. На вытянутых порт-экранах верх
-        // фона сидит ниже верха канваса (чёрная зона), и HudPanel сам
-        // смещает себя вниз через _alignBelowBackground (см. HudPanel.js).
         {
           linkID: OBJECTS.hudPanel,
           class: HudPanel,

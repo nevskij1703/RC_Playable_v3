@@ -38,16 +38,11 @@ export default class HudPanel extends Container {
     this._buildClientSection();
     this._render();
 
-    // Y привязываем к верху back-wall спрайта фона: его положение в стейдже
-    // зависит от Location.scale (включается на узких аспектах <1.49) и от
-    // MainContainer center, поэтому статичный y из конфига ломается на
-    // некоторых пропорциях. Принудительно прижимаем HUD под верх стены с
-    // фиксированным отступом — на любом aspect HUD остаётся в видимой зоне
-    // фона. X из конфига сохраняется (для горизонтального центра-tweak'а).
-    //
-    // Задержки: EditorTool.applyStoredLayout стартует с offset 200мс при
-    // init и 80мс на resize и перезаписывает view.position. Запускаемся
-    // позже — иначе наш align'у затрут bucket-defaults.
+    // На ультра-вытянутых аспектах фон не доходит до верха канваса —
+    // top-anchor из bucket'а ставит HUD в чёрную зону над back-wall.
+    // Если HUD оказался выше верха background-картинки, снапаем его вниз
+    // под верх стены. На landscape/squarish bucket'ах фон занимает верх
+    // канваса (bounds.y ≤ 8) — там не вмешиваемся, bucket-layout уже ок.
     if (window.application && window.application.eventEmitter) {
       window.application.eventEmitter.on(
         APPLICATION_EVENTS.playableResize,
@@ -64,15 +59,10 @@ export default class HudPanel extends Container {
     if (!back) return;
     const bounds = back.getBounds();
     if (!bounds || bounds.height < 50) return;
-    // Корректировку запускаем только если фон НЕ доходит до верха канваса
-    // и над ним есть видимая чёрная зона (т.е. bounds.y > 0). На ландшейпе
-    // и квадратных аспектах back-wall перекрывает верх канваса — bucket-
-    // layout уже даёт корректное положение HUD'а (под верхним краем,
-    // выше тултипов клиентов), не трогаем его.
+    // Фон закрывает верх канваса — bucket-layout уже корректен, не трогаем.
     if (bounds.y <= 8) return;
-    // Дополнительно проверяем — если HUD уже находится ниже верха стены,
-    // значит юзер/bucket уже расположил его внутри фона. Не сдвигаем.
-    const halfPanel = (PANEL_H / 2 + 4) * v.scale.y; // +4 — учёт нижней тени
+    // HUD уже внутри фона (юзер/bucket поставили его правильно) — не двигаем.
+    const halfPanel = (PANEL_H / 2 + 4) * v.scale.y;
     const hudTopWorldY = v.worldTransform.ty - halfPanel;
     if (hudTopWorldY >= bounds.y - 4) return;
     // Иначе — HUD в чёрной зоне над фоном, прижимаем под верх стены.
@@ -85,7 +75,7 @@ export default class HudPanel extends Container {
     const loc = ObjectLinks.get(OBJECTS.location);
     const root = loc && loc.view;
     if (!root || !root.children) return null;
-    // Location → background (1й child) → back (1й child)
+    // Location → background (0й child) → back (0й child)
     const bg = root.children[0];
     if (!bg || !bg.children) return null;
     const back = bg.children[0];
