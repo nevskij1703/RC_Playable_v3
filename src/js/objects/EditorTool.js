@@ -169,19 +169,16 @@ const TARGETS = [
   { id: "hudPanel", linkID: OBJECTS.hudPanel, topAnchor: true },
 ];
 
-// Высота канваса в системе координат UI-контейнера (он отцентрирован).
-// Используется для конверсии HUD top-anchor coords → view.position.
-function getCanvasH() {
+// Точка в parent-local координатах, соответствующая align-якорю на канвасе
+// (например, верхняя центральная точка для align={0.5, 0}). Используется для
+// конверсии topAnchor coords ↔ view.position. Делегирует PIXI parent.toLocal,
+// который корректно учитывает поворот стейджа в landscape.
+function getAlignLocal(view, alignX, alignY) {
   const r = window.application && window.application.renderer;
-  if (!r) return 1500;
-  // PIXI v7: app.renderer.screen.height (в логических px). Плюс stage может
-  // быть повёрнут (-90 в landscape) — тогда screen ширина становится высотой
-  // в координатах сцены. Проще брать всегда max(screen.w, screen.h) — UI
-  // всегда живёт в портретной системе координат (длинная ось).
-  const app = r.app || r;
-  const screen = app.screen || app.renderer?.screen;
-  if (!screen) return 1500;
-  return Math.max(screen.width, screen.height);
+  const screen = r && r.screen;
+  if (!view || !view.parent || !screen) return null;
+  const pt = new PIXI.Point(screen.width * alignX, screen.height * alignY);
+  return view.parent.toLocal(pt);
 }
 
 // In-game редактор: чит-кнопка → перемещение объектов мышью + колесо для
@@ -589,19 +586,24 @@ export default class EditorTool {
   _refreshParamsBlock() {
     const wrap = document.getElementById("ed-params");
     if (!wrap || wrap.style.display === "none") return;
-    const halfH = getCanvasH() / 2;
     wrap.querySelectorAll("input").forEach((inp) => {
       if (document.activeElement === inp) return; // не перезаписывать набираемое
       const t = this.targets.find((x) => x.desc.id === inp.dataset.id);
       if (!t) return;
       const v = t.obj.view;
       if (!v) return;
-      if (inp.dataset.prop === "x") inp.value = Math.round(v.position.x);
-      else if (inp.dataset.prop === "y") {
-        // Для topAnchor показываем y относительно верхнего края.
-        const yOut = t.desc.topAnchor ? v.position.y + halfH : v.position.y;
-        inp.value = Math.round(yOut);
-      } else if (inp.dataset.prop === "s") inp.value = +v.scale.x.toFixed(3);
+      let xVal = v.position.x;
+      let yVal = v.position.y;
+      if (t.desc.topAnchor) {
+        const off = getAlignLocal(v, 0.5, 0);
+        if (off) {
+          xVal = v.position.x - off.x;
+          yVal = v.position.y - off.y;
+        }
+      }
+      if (inp.dataset.prop === "x") inp.value = Math.round(xVal);
+      else if (inp.dataset.prop === "y") inp.value = Math.round(yVal);
+      else if (inp.dataset.prop === "s") inp.value = +v.scale.x.toFixed(3);
     });
   }
 
@@ -612,14 +614,22 @@ export default class EditorTool {
     if (!v) return;
     const val = parseFloat(inp.value);
     if (isNaN(val)) return;
-    if (inp.dataset.prop === "x") v.position.x = val;
-    else if (inp.dataset.prop === "y") {
-      // Для topAnchor пользовательский ввод — расстояние от верхнего края.
-      const halfH = getCanvasH() / 2;
-      v.position.y = t.desc.topAnchor ? val - halfH : val;
-    } else if (inp.dataset.prop === "s") {
-      v.scale.x = val;
-      v.scale.y = val;
+    if (t.desc.topAnchor) {
+      // Для topAnchor конвертим из engine's config-coords в parent-local.
+      const off = getAlignLocal(v, 0.5, 0) || { x: 0, y: 0 };
+      if (inp.dataset.prop === "x") v.position.x = val + off.x;
+      else if (inp.dataset.prop === "y") v.position.y = val + off.y;
+      else if (inp.dataset.prop === "s") {
+        v.scale.x = val;
+        v.scale.y = val;
+      }
+    } else {
+      if (inp.dataset.prop === "x") v.position.x = val;
+      else if (inp.dataset.prop === "y") v.position.y = val;
+      else if (inp.dataset.prop === "s") {
+        v.scale.x = val;
+        v.scale.y = val;
+      }
     }
     this.selected = t;
     this._showSelected();
@@ -698,17 +708,22 @@ export default class EditorTool {
     const bucket = this._saveBucket();
     const data = migrate(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
     data[bucket] = data[bucket] || {};
-    const halfH = getCanvasH() / 2;
     for (const t of this.targets) {
       const v = t.obj.view;
       if (!v) continue;
-      // topAnchor: храним y относительно верхнего края (0 = top edge).
-      // Иначе храним raw view.position в parent-local space.
-      const yOut = t.desc.topAnchor
-        ? v.position.y + halfH
-        : v.position.y;
+      let xOut = v.position.x;
+      let yOut = v.position.y;
+      if (t.desc.topAnchor) {
+        // saved.x/y = engine's config.position.x/y для absolute+align(0.5, 0):
+        // offsets от верхне-центральной точки канваса в parent-local coords.
+        const off = getAlignLocal(v, 0.5, 0);
+        if (off) {
+          xOut = v.position.x - off.x;
+          yOut = v.position.y - off.y;
+        }
+      }
       data[bucket][t.desc.id] = {
-        x: Math.round(v.position.x),
+        x: Math.round(xOut),
         y: Math.round(yOut),
         scaleX: +v.scale.x.toFixed(3),
         scaleY: +v.scale.y.toFixed(3),
@@ -775,16 +790,45 @@ export default class EditorTool {
 
     if (!this.targets.length) this.collectTargets();
     const isPortrait = isPortraitBucket(bucket);
-    const halfH = getCanvasH() / 2;
     for (const t of this.targets) {
       const e = layout[t.desc.id];
       if (!e) continue;
       const v = t.obj.view;
       if (!v) continue;
-      // topAnchor: y хранится от верхнего края, конвертим в parent-local.
-      const yIn = t.desc.topAnchor ? e.y - halfH : e.y;
+      const cfg = t.obj.config || {};
+      if (t.desc.topAnchor) {
+        // saved.x/y трактуем как engine's config.position offsets для
+        // absolute+align (top-center). Пишем в config и зовём applyPosition()
+        // — engine сам корректно считает с учётом stage rotation в landscape.
+        if (cfg.position) {
+          cfg.position.x = e.x;
+          cfg.position.y = e.y;
+        }
+        if (cfg.position_portrait) {
+          cfg.position_portrait.x = e.x;
+          cfg.position_portrait.y = e.y;
+        }
+        if (typeof t.obj.applyPosition === "function") {
+          t.obj.applyPosition();
+        } else {
+          // Fallback: ручная математика через alignLocal.
+          const off = getAlignLocal(v, 0.5, 0);
+          if (off) {
+            v.position.x = e.x + off.x;
+            v.position.y = e.y + off.y;
+          } else {
+            v.position.x = e.x;
+            v.position.y = e.y;
+          }
+        }
+        if (e.scaleX != null) {
+          v.scale.x = e.scaleX;
+          v.scale.y = e.scaleY;
+        }
+        continue;
+      }
       v.position.x = e.x;
-      v.position.y = yIn;
+      v.position.y = e.y;
       if (e.scaleX != null) {
         v.scale.x = e.scaleX;
         v.scale.y = e.scaleY;
