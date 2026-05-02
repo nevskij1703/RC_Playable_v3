@@ -660,11 +660,15 @@ export default class PlayableController extends BaseObject {
   }
 
   // Возвращает тарелку, на которую можно положить linkID
-  // (meat/tomato/cucumbers/fry) с сохранением matching-инварианта; или null.
-  // Из нескольких валидных предпочитает наиболее «достроенную» (greedy:
-  // сначала закрыть начатую — короче TTR заказа).
-  // Мясо — база любой шавермы, для него matching-гейт пропускаем: разрешаем
-  // класть на любую тарелку без мяса, даже если такого заказа сейчас нет.
+  // (meat/tomato/cucumbers/fry); или null если все тарелки уже содержат
+  // этот ингредиент. Greedy: сначала достраиваем самую полную тарелку.
+  //
+  // Matching-гейт раньше блокировал «лишние» ингредиенты (supply > demand),
+  // но в связке с разрешением собирать лепёшку+мясо впрок это создавало
+  // тупик: собрав 3 заготовки при 2 не-cola заказах, игрок не мог
+  // достроить картошку — гейт говорил «нет матчинга». Снимаем гейт для
+  // всех ингредиентов; лишняя готовая шаверма просто подождёт следующего
+  // клиента (или останется неотданной — игроку виднее).
   _pickPlateForIngredient(linkID) {
     const candidates = this.currentDishes.filter(
       (d) => d.visible && (!d[linkID] || !d[linkID].visible)
@@ -676,22 +680,7 @@ export default class PlayableController extends BaseObject {
         this.visibleIngredients(b).length - this.visibleIngredients(a).length
     );
 
-    if (linkID === OBJECTS.meat) return candidates[0];
-
-    const baseSupply = this.currentDishes.map((d) => ({
-      dish: d,
-      ings: this.visibleIngredients(d),
-    }));
-    const demand = this._currentDemand();
-
-    for (const c of candidates) {
-      const supply = baseSupply.map(({ dish, ings }) => {
-        if (dish !== c) return ings;
-        return ings.includes(linkID) ? ings : [...ings, linkID];
-      });
-      if (this._canMatch(supply, demand)) return c;
-    }
-    return null;
+    return candidates[0];
   }
 
   // Можно ли тапнуть ингредиент (meat / tomato / cucumbers / fry).
