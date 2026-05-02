@@ -290,45 +290,64 @@ export default class EditorTool {
 
   _buildUI() {
     if (document.getElementById("rcp-editor-ui")) return;
+
+    // Кнопка-вызов прибита к левому верхнему углу и НЕ перетаскивается —
+    // если панель утащили за пределы экрана, кнопка остаётся доступной.
     const wrap = document.createElement("div");
     wrap.id = "rcp-editor-ui";
     wrap.style.cssText =
       "position:fixed;top:8px;left:8px;z-index:99999;font:bold 12px Arial,sans-serif;user-select:none;";
+    wrap.innerHTML =
+      '<button id="ed-toggle" style="padding:6px 10px;background:#7561C8;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.3);">⚙ Читы</button>';
+    document.body.appendChild(wrap);
+
+    // Панель — отдельный fixed-элемент (не вложен в кнопку), её можно
+    // таскать независимо от кнопки.
+    const panelWrap = document.createElement("div");
+    panelWrap.id = "rcp-editor-panel";
+    panelWrap.style.cssText =
+      "position:fixed;top:48px;left:8px;z-index:99999;font:bold 12px Arial,sans-serif;user-select:none;display:none;";
 
     const btn = (id, bg, label) =>
       `<button id="${id}" style="display:block;width:100%;padding:7px 10px;margin-bottom:6px;background:${bg};color:#fff;border:none;border-radius:5px;cursor:pointer;">${label}</button>`;
 
     // Header панели: drag-handle + кнопка закрытия.
     const header =
-      '<div id="ed-header" style="display:flex;align-items:center;justify-content:space-between;margin:-4px -4px 6px;padding:4px 6px;background:#f0f0f0;border-radius:5px;cursor:move;">' +
-      '<span style="color:#555;font-size:11px;">⚙ Читы — перетащить</span>' +
-      '<button id="ed-close" style="border:none;background:transparent;color:#666;font:bold 18px Arial,sans-serif;cursor:pointer;padding:0 4px;line-height:1;">×</button>' +
+      '<div id="ed-header" style="display:flex;align-items:center;justify-content:space-between;margin:-4px -4px 6px;padding:6px 8px;background:rgba(255,255,255,0.08);border-radius:5px;cursor:move;">' +
+      '<span style="color:#ccc;font-size:11px;">⚙ Читы — перетащить</span>' +
+      '<button id="ed-close" style="border:none;background:transparent;color:#ccc;font:bold 18px Arial,sans-serif;cursor:pointer;padding:0 4px;line-height:1;">×</button>' +
       "</div>";
+
+    const sectionStyle =
+      "display:none;margin:0 0 6px;padding:8px;background:rgba(255,255,255,0.06);border-radius:5px;color:#fff;";
+    const statusStyle =
+      "margin-top:6px;font-size:11px;color:#ddd;line-height:1.35;";
+    const taStyle =
+      "display:none;width:100%;height:120px;margin-top:6px;font:11px monospace;padding:6px;border:1px solid #555;border-radius:4px;box-sizing:border-box;resize:vertical;background:rgba(0,0,0,0.4);color:#fff;";
 
     // Раздел «Перемещение» — встраивается между кнопкой и следующими кнопками.
     const sectionObjects =
-      '<div id="ed-section-objects" style="display:none;margin:0 0 6px;padding:8px;background:#fafafa;border-radius:5px;">' +
+      `<div id="ed-section-objects" style="${sectionStyle}">` +
       '<div id="ed-buckets" style="margin-bottom:6px;font-size:10px;"></div>' +
       '<div id="ed-params" style="margin-bottom:6px;max-height:35vh;overflow:auto;"></div>' +
       btn("ed-save", "#4FA8E0", "Сохранить JSON") +
       btn("ed-reset", "#999", "Сбросить") +
-      '<div id="ed-status" style="margin-top:6px;font-size:11px;color:#444;line-height:1.35;"></div>' +
-      '<textarea id="ed-dump" readonly style="display:none;width:100%;height:120px;margin-top:6px;font:11px monospace;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;resize:vertical;"></textarea>' +
+      `<div id="ed-status" style="${statusStyle}"></div>` +
+      `<textarea id="ed-dump" readonly style="${taStyle}"></textarea>` +
       "</div>";
 
     // Раздел «Параметры» — баланс игры.
     const sectionNum =
-      '<div id="ed-section-num" style="display:none;margin:0 0 6px;padding:8px;background:#fafafa;border-radius:5px;">' +
+      `<div id="ed-section-num" style="${sectionStyle}">` +
       '<div id="ed-num-fields" style="margin-bottom:6px;"></div>' +
       btn("ed-num-save", "#4FA8E0", "Сохранить JSON") +
       btn("ed-num-reset", "#999", "Сбросить параметры") +
-      '<div id="ed-num-status" style="margin-top:6px;font-size:11px;color:#444;line-height:1.35;"></div>' +
-      '<textarea id="ed-num-dump" readonly style="display:none;width:100%;height:120px;margin-top:6px;font:11px monospace;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;resize:vertical;"></textarea>' +
+      `<div id="ed-num-status" style="${statusStyle}"></div>` +
+      `<textarea id="ed-num-dump" readonly style="${taStyle}"></textarea>` +
       "</div>";
 
-    wrap.innerHTML =
-      '<button id="ed-toggle" style="padding:6px 10px;background:#7561C8;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.3);">⚙ Читы</button>' +
-      '<div id="ed-panel" style="display:none;margin-top:6px;background:#fff;padding:10px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.25);min-width:240px;">' +
+    panelWrap.innerHTML =
+      '<div id="ed-panel" style="background:rgba(0,0,0,0.82);padding:10px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.5);min-width:240px;color:#fff;">' +
       header +
       btn("ed-open-objects", "#E07A2A", "Перемещение") +
       sectionObjects +
@@ -336,15 +355,14 @@ export default class EditorTool {
       sectionNum +
       btn("ed-restart", "#D45D43", "Перезагрузка") +
       "</div>";
-
-    document.body.appendChild(wrap);
+    document.body.appendChild(panelWrap);
 
     document.getElementById("ed-toggle").onclick = () => {
-      const p = document.getElementById("ed-panel");
-      p.style.display = p.style.display === "none" ? "block" : "none";
+      const pw = document.getElementById("rcp-editor-panel");
+      pw.style.display = pw.style.display === "none" ? "block" : "none";
     };
     document.getElementById("ed-close").onclick = () => {
-      document.getElementById("ed-panel").style.display = "none";
+      document.getElementById("rcp-editor-panel").style.display = "none";
       // Закрытие панели сворачивает раздел Перемещение → drag mode off.
       const obj = document.getElementById("ed-section-objects");
       if (obj && obj.style.display === "block") this._toggleSection("objects");
@@ -405,8 +423,8 @@ export default class EditorTool {
 
   _setupPanelDrag() {
     const handle = document.getElementById("ed-header");
-    const panel = document.getElementById("ed-panel");
-    if (!handle || !panel) return;
+    const panelWrap = document.getElementById("rcp-editor-panel");
+    if (!handle || !panelWrap) return;
     let dragging = false;
     let startX = 0,
       startY = 0,
@@ -416,8 +434,7 @@ export default class EditorTool {
       // Игнорируем клики по кнопке закрытия.
       if (e.target && e.target.id === "ed-close") return;
       dragging = true;
-      const wrap = document.getElementById("rcp-editor-ui");
-      const rect = wrap.getBoundingClientRect();
+      const rect = panelWrap.getBoundingClientRect();
       origX = rect.left;
       origY = rect.top;
       startX = e.clientX;
@@ -426,24 +443,20 @@ export default class EditorTool {
     });
     document.addEventListener("mousemove", (e) => {
       if (!dragging) return;
-      const wrap = document.getElementById("rcp-editor-ui");
-      if (!wrap) return;
       const x = origX + (e.clientX - startX);
       const y = origY + (e.clientY - startY);
-      wrap.style.left = Math.max(0, x) + "px";
-      wrap.style.top = Math.max(0, y) + "px";
+      panelWrap.style.left = Math.max(0, x) + "px";
+      panelWrap.style.top = Math.max(0, y) + "px";
     });
     document.addEventListener("mouseup", () => {
       if (!dragging) return;
       dragging = false;
-      const wrap = document.getElementById("rcp-editor-ui");
-      if (!wrap) return;
       try {
         localStorage.setItem(
           PANEL_POS_KEY,
           JSON.stringify({
-            left: wrap.style.left,
-            top: wrap.style.top,
+            left: panelWrap.style.left,
+            top: panelWrap.style.top,
           })
         );
       } catch (e) {}
@@ -455,10 +468,10 @@ export default class EditorTool {
       const raw = localStorage.getItem(PANEL_POS_KEY);
       if (!raw) return;
       const pos = JSON.parse(raw);
-      const wrap = document.getElementById("rcp-editor-ui");
-      if (!wrap || !pos) return;
-      if (pos.left) wrap.style.left = pos.left;
-      if (pos.top) wrap.style.top = pos.top;
+      const panelWrap = document.getElementById("rcp-editor-panel");
+      if (!panelWrap || !pos) return;
+      if (pos.left) panelWrap.style.left = pos.left;
+      if (pos.top) panelWrap.style.top = pos.top;
     } catch (e) {}
   }
 
@@ -497,17 +510,17 @@ export default class EditorTool {
     if (!wrap) return;
     const cur = this._currentNumValues();
     const inputCss =
-      "width:70px;padding:3px 5px;font:11px monospace;border:1px solid #ccc;border-radius:3px;";
+      "width:70px;padding:3px 5px;font:11px monospace;border:1px solid #555;border-radius:3px;background:rgba(255,255,255,0.08);color:#fff;";
     const rowCss =
-      "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;font-size:11px;";
+      "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;font-size:11px;color:#fff;";
 
-    let html = '<div style="font-size:10px;color:#666;margin-bottom:4px;">Балансовые параметры (применятся после перезапуска):</div>';
+    let html = '<div style="font-size:10px;color:#aaa;margin-bottom:4px;">Балансовые параметры (применятся после перезапуска):</div>';
     for (const f of PARAM_FIELDS) {
       html +=
         `<div style="${rowCss}"><span>${f.label}</span>` +
         `<input data-num-key="${f.key}" type="number" min="${f.min}" max="${f.max}" step="${f.step}" value="${cur[f.key]}" style="${inputCss}"></div>`;
     }
-    html += '<div style="font-size:10px;color:#666;margin:8px 0 4px;">Цены товаров (монет):</div>';
+    html += '<div style="font-size:10px;color:#aaa;margin:8px 0 4px;">Цены товаров (монет):</div>';
     for (const f of PRICE_FIELDS) {
       html +=
         `<div style="${rowCss}"><span>${f.label}</span>` +
@@ -880,19 +893,24 @@ export default class EditorTool {
     const btnCss = (b) => {
       const isLive = b === live;
       const isEdit = b === writeTo;
-      const bg = isEdit ? "#7561C8" : isLive ? "#E07A2A" : "#eee";
-      const fg = isEdit || isLive ? "#fff" : "#333";
-      return `padding:5px 8px;margin:2px;background:${bg};color:${fg};border:1px solid #bbb;border-radius:4px;cursor:pointer;font:bold 10px Arial,sans-serif;flex:1;min-width:0;`;
+      const bg = isEdit
+        ? "#7561C8"
+        : isLive
+        ? "#E07A2A"
+        : "rgba(255,255,255,0.08)";
+      const fg = "#fff";
+      const border = isEdit || isLive ? "1px solid transparent" : "1px solid #555";
+      return `padding:5px 8px;margin:2px;background:${bg};color:${fg};border:${border};border-radius:4px;cursor:pointer;font:bold 10px Arial,sans-serif;flex:1;min-width:0;`;
     };
     let html = "";
-    html += `<div style="margin-bottom:6px;">Активный экран: <b style="color:#E07A2A;">${live}</b> · save → <b style="color:#7561C8;">${writeTo}</b></div>`;
-    html += '<div style="margin-bottom:3px;color:#666;font-size:9px;">Горизонтальные:</div>';
+    html += `<div style="margin-bottom:6px;color:#fff;">Активный экран: <b style="color:#FFB07A;">${live}</b> · save → <b style="color:#B7A7F0;">${writeTo}</b></div>`;
+    html += '<div style="margin-bottom:3px;color:#aaa;font-size:9px;">Горизонтальные:</div>';
     html += '<div style="display:flex;flex-wrap:wrap;margin-bottom:4px;">';
     for (const b of HORIZONTAL_BUCKETS.concat(["square"])) {
       html += `<button data-bucket="${b}" style="${btnCss(b)}">${labels[b]}</button>`;
     }
     html += "</div>";
-    html += '<div style="margin-bottom:3px;color:#666;font-size:9px;">Вертикальные:</div>';
+    html += '<div style="margin-bottom:3px;color:#aaa;font-size:9px;">Вертикальные:</div>';
     html += '<div style="display:flex;flex-wrap:wrap;">';
     for (const b of PORTRAIT_BUCKETS) {
       html += `<button data-bucket="${b}" style="${btnCss(b)}">${labels[b]}</button>`;
@@ -919,13 +937,13 @@ export default class EditorTool {
     if (!wrap) return;
     wrap.innerHTML = "";
     const inputStyle =
-      "width:54px;padding:2px 4px;font:11px monospace;border:1px solid #ccc;border-radius:3px;";
+      "width:54px;padding:2px 4px;font:11px monospace;border:1px solid #555;border-radius:3px;background:rgba(255,255,255,0.08);color:#fff;";
     for (const t of this.targets) {
       const row = document.createElement("div");
       row.style.cssText =
-        "display:flex;align-items:center;gap:3px;margin-bottom:4px;font-size:10px;";
+        "display:flex;align-items:center;gap:3px;margin-bottom:4px;font-size:10px;color:#fff;";
       row.innerHTML =
-        `<span style="width:90px;font-weight:700;color:#333;">${t.desc.id}</span>` +
+        `<span style="width:90px;font-weight:700;color:#fff;">${t.desc.id}</span>` +
         `<span>X</span><input data-id="${t.desc.id}" data-prop="x" type="number" step="1" style="${inputStyle}">` +
         `<span>Y</span><input data-id="${t.desc.id}" data-prop="y" type="number" step="1" style="${inputStyle}">` +
         `<span>S</span><input data-id="${t.desc.id}" data-prop="s" type="number" step="0.01" style="${inputStyle}">`;
