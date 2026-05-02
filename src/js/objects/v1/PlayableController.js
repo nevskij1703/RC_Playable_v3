@@ -83,8 +83,22 @@ if (typeof window !== "undefined") window.__rcpSettings = RCP_SETTINGS;
 const SLOT_COUNT = RCP_SETTINGS.slotCount;
 export const TOTAL_BUYERS = RCP_SETTINGS.totalBuyers;
 
-const SLOT_CHARACTERS = ["italian_man", "pretty_woman", "old_grambler"];
+// Канонические персонажи слотов 0/1/2 — задают позицию слота. Любой
+// персонаж из CHARACTER_POOL при спавне в слот N принимает позицию
+// SLOT_CANONICAL_CHARS[N] (см. animateCharacterIn). Editor-Tool правит
+// именно этих троих, а они «переносят» свои координаты на остальных.
+const SLOT_CANONICAL_CHARS = ["italian_man", "pretty_woman", "old_grambler"];
 const SLOT_TOOLTIPS = [OBJECTS.tooltip1, OBJECTS.tooltip2, OBJECTS.tooltip3];
+
+// Пул персонажей (4 спайна из base; v_duels не подключены — их спайн
+// engine не находит при текущей конфигурации importAll). Спавн выбирает
+// свободного, двух одинаковых на прилавке одновременно не будет.
+const CHARACTER_POOL = [
+  "italian_man",
+  "pretty_woman",
+  "old_grambler",
+  "old_stylish_woman",
+];
 
 // ---------- Roguelike upgrade system ----------
 // Игрок начинает с 1 тарелкой и 0 разблокированными топпингами; каждые 3
@@ -418,6 +432,31 @@ export default class PlayableController extends BaseObject {
     return this.totalSpawned < TOTAL_BUYERS;
   }
 
+  // Опорная позиция слота — координаты канонического персонажа этого
+  // слота. Любой character при спавне в slot N становится сюда.
+  _getSlotPosition(slotIndex) {
+    const canonName = SLOT_CANONICAL_CHARS[slotIndex];
+    const canon = canonName && this.buyersContainer[canonName];
+    if (canon && canon.config && canon.config.position) {
+      return { x: canon.config.position.x, y: canon.config.position.y };
+    }
+    return { x: 0, y: 0 };
+  }
+
+  // Свободный персонаж из CHARACTER_POOL — не используется ни в одном
+  // активном слоте. Так избегаем «двух дедушек одновременно». Если все
+  // 8 заняты (теоретически невозможно при slotCount<=3), фолбек —
+  // канонический персонаж слота.
+  _pickAvailableCharacter(slotIndex) {
+    const busy = new Set();
+    for (const b of this.activeBuyers) {
+      if (b && b.characterName) busy.add(b.characterName);
+    }
+    const free = CHARACTER_POOL.filter((n) => !busy.has(n));
+    if (free.length === 0) return SLOT_CANONICAL_CHARS[slotIndex];
+    return free[Math.floor(Math.random() * free.length)];
+  }
+
   spawnBuyerInSlot(slotIndex, isInitial = false) {
     if (!this.hasMoreBuyers()) return;
     if (this.activeBuyers[slotIndex]) return;
@@ -425,8 +464,10 @@ export default class PlayableController extends BaseObject {
 
     this.spawningSlots.add(slotIndex);
 
-    const characterName = SLOT_CHARACTERS[slotIndex];
-    const character = this.buyersContainer[characterName];
+    const characterName = this._pickAvailableCharacter(slotIndex);
+    const character =
+      this.buyersContainer[characterName] ||
+      this.buyersContainer[SLOT_CANONICAL_CHARS[slotIndex]];
     const tooltip = ObjectLinks.get(SLOT_TOOLTIPS[slotIndex]);
 
     const buyer = {
@@ -544,10 +585,11 @@ export default class PlayableController extends BaseObject {
   animateCharacterIn(buyer, isInitial) {
     const { character, tooltip } = buyer;
 
-    character.position = {
-      x: character.config.position.x,
-      y: character.config.position.y,
-    };
+    // Любой персонаж становится в позицию канонического character слота
+    // (italian_man / pretty_woman / old_grambler). Editor правит именно
+    // этих троих, и их положение становится «опорной точкой» слота.
+    const slotPos = this._getSlotPosition(buyer.slotIndex);
+    character.position = slotPos;
     character.alpha = 1;
     character.show();
 
