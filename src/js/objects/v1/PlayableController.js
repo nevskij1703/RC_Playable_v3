@@ -1039,6 +1039,20 @@ export default class PlayableController extends BaseObject {
         }
       }
     );
+
+    // Стаканы колы тоже — пока не unlockedCola, тапы блокируем.
+    if (this.cola && this.cola.children) {
+      this.cola.children.forEach((c) => {
+        if (
+          c.baseObject &&
+          typeof c.baseObject.updateInteractive === "function"
+        ) {
+          c.baseObject.updateInteractive(
+            this.unlockedCola ? "dynamic" : "auto"
+          );
+        }
+      });
+    }
   }
 
   updatePansInteractive() {
@@ -1211,16 +1225,25 @@ export default class PlayableController extends BaseObject {
       if (dish && dish.view) dish.view.visible = false;
     }
 
-    // Кола заблокирована до соответствующего апгрейда — скрываем все
-    // 3 стакана. После applyColaUpgrade — showDrinks() их вернёт.
+    // Кола заблокирована до соответствующего апгрейда — стаканы видны,
+    // но полупрозрачны и с замком сверху (как заблокированные топпинги).
+    // После applyColaUpgrade alpha=1 и badge удаляется.
     if (!this.unlockedCola && this.cola && this.cola.children) {
+      this.cola.view.alpha = 0.35;
       this.cola.children.forEach((c) => {
-        if (c.baseObject && typeof c.baseObject.hide === "function") {
-          c.baseObject.hide();
-        } else {
-          c.visible = false;
+        if (c.baseObject && typeof c.baseObject.show === "function") {
+          c.baseObject.show();
         }
+        c.visible = true;
       });
+
+      // Бейдж в центре группы стаканов. Координаты подобраны по
+      // позициям cola1/2/3 (см. Location.js).
+      const colaBadge = createLockBadge(34);
+      colaBadge.position.set(257, 14);
+      this.cola.view.parent &&
+        this.cola.view.parent.addChild(colaBadge);
+      this._lockBadges.push({ kind: "cola", badge: colaBadge });
     }
 
     // Топпинги: tomato/cucumbers/fry — Food-контейнеры. Делаем сам контейнер
@@ -1407,8 +1430,19 @@ export default class PlayableController extends BaseObject {
   applyColaUpgrade() {
     if (this.unlockedCola) return;
     this.unlockedCola = true;
-    // Возвращаем все 3 стакана на стол. showDrinks() сортирует и
-    // показывает каждый, ту же логику использует maybeRefillCola.
+    if (this.cola && this.cola.view) this.cola.view.alpha = 1;
+    // Снимаем замок-бейдж, поставленный в _setupLockedVisuals.
+    this._lockBadges = this._lockBadges.filter((entry) => {
+      if (entry.kind === "cola") {
+        if (entry.badge && entry.badge.parent) {
+          entry.badge.parent.removeChild(entry.badge);
+        }
+        return false;
+      }
+      return true;
+    });
+    // showDrinks гарантирует, что все 3 стакана visible (если какой-то
+    // был «съеден» предыдущим maybeRefillCola).
     this.showDrinks();
   }
 
