@@ -11,9 +11,7 @@
       "Bash(git remote *)",
       "Bash(git push *)",
       "Bash(git commit *)",
-      "mcp__Claude_Preview__preview_start",
-      "Bash(python3 -c \"from PIL import Image; im = Image.open\\('/mnt/c/Users/Александр/Desktop/Claude/RC_Playable_v3/src/img/base/location/back.jpg'\\); print\\(im.size\\)\")",
-      "Bash(identify \"C:/Users/Александр/Desktop/Claude/RC_Playable_v3/src/img/base/location/back.jpg\")"
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }
