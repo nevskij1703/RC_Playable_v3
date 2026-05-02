@@ -329,7 +329,24 @@ export default class PlayableController extends BaseObject {
       : DISH_TEMPLATES.filter((t) => this._templateLockedToppingCount(t) <= 1);
     const safePool = pool.length ? pool : DISH_TEMPLATES;
 
-    const dishCount = 1 + Math.floor(Math.random() * RCP_SETTINGS.maxDishesPerOrder);
+    // Phase-зависимое распределение размера заказа:
+    //   phase 1 — всегда 1 блюдо (онбординг 1-й волны)
+    //   phase 2 — 1..2 равномерно
+    //   phase 3+ — 25% / 50% / 25% для 1 / 2 / 3 блюд
+    // Сверху clamp-ится по RCP_SETTINGS.maxDishesPerOrder (user-config).
+    const phase = this._currentPhase();
+    let dishCount;
+    if (phase === 1) {
+      dishCount = 1;
+    } else if (phase === 2) {
+      dishCount = 1 + Math.floor(Math.random() * 2);
+    } else {
+      const r = Math.random();
+      dishCount = r < 0.25 ? 1 : r < 0.75 ? 2 : 3;
+    }
+    if (dishCount > RCP_SETTINGS.maxDishesPerOrder) {
+      dishCount = RCP_SETTINGS.maxDishesPerOrder;
+    }
     const dishes = [];
     for (let i = 0; i < dishCount; i++) {
       const t = safePool[Math.floor(Math.random() * safePool.length)];
