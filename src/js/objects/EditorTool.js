@@ -44,20 +44,32 @@ const DEFAULT_LAYOUT = {
   // 21:9 и шире — сверхширокий горизонтальный
   ultraWide: {
     italian_man: { x: -353, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -116, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
     tooltip1: { x: -310, y: -433, scaleX: 0.691, scaleY: 0.691 },
-    tooltip2_phase1: { x: -109, y: -435, scaleX: 0.85, scaleY: 0.85 },
+    tooltip2: { x: -85, y: -440, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 159, y: -432, scaleX: 0.691, scaleY: 0.691 },
+    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    tooltip2_phase1: { x: -109, y: -435, scaleX: 0.85, scaleY: 0.85 },
+    italian_man_phase2: { x: -242, y: 196, scaleX: 1, scaleY: 1 },
+    old_grambler_phase2: { x: 51, y: 112, scaleX: 1, scaleY: 1 },
+    tooltip1_phase2: { x: -213, y: -427, scaleX: 0.718, scaleY: 0.718 },
+    tooltip3_phase2: { x: 65, y: -426, scaleX: 0.721, scaleY: 0.721 },
   },
   // Классический горизонтальный десктоп (16:9, 16:10, 5:3, 3:2)
   desktop: {
     italian_man: { x: -353, y: 201, scaleX: 1, scaleY: 1 },
-    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -116, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
     tooltip1: { x: -305, y: -409, scaleX: 0.658, scaleY: 0.658 },
-    tooltip2_phase1: { x: -115, y: -433, scaleX: 0.85, scaleY: 0.85 },
+    tooltip2: { x: -85, y: -440, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 158, y: -409, scaleX: 0.625, scaleY: 0.625 },
+    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    tooltip2_phase1: { x: -115, y: -433, scaleX: 0.85, scaleY: 0.85 },
+    italian_man_phase2: { x: -242, y: 196, scaleX: 1, scaleY: 1 },
+    old_grambler_phase2: { x: 51, y: 112, scaleX: 1, scaleY: 1 },
+    tooltip1_phase2: { x: -209, y: -422, scaleX: 0.718, scaleY: 0.718 },
+    tooltip3_phase2: { x: 66, y: -421, scaleX: 0.721, scaleY: 0.721 },
   },
   // Почти квадратный экран (4:3 лэндскейп) — пользователь не настраивал,
   // оставляем прежние значения как fallback.
@@ -72,20 +84,32 @@ const DEFAULT_LAYOUT = {
   // 3:4 — вертикальный планшет
   tablet: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -116, y: 120, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 127, y: 112, scaleX: 1, scaleY: 1 },
     tooltip1: { x: -353, y: -544, scaleX: 0.93, scaleY: 0.93 },
-    tooltip2_phase1: { x: -111, y: -461, scaleX: 0.85, scaleY: 0.85 },
+    tooltip2: { x: 2, y: -450, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 131, y: -538, scaleX: 0.932, scaleY: 0.932 },
+    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    tooltip2_phase1: { x: -111, y: -461, scaleX: 0.85, scaleY: 0.85 },
+    italian_man_phase2: { x: -242, y: 196, scaleX: 1, scaleY: 1 },
+    old_grambler_phase2: { x: 51, y: 112, scaleX: 1, scaleY: 1 },
+    tooltip1_phase2: { x: -238, y: -535, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3_phase2: { x: 45, y: -529, scaleX: 0.932, scaleY: 0.932 },
   },
   // 9:16 — вертикальный телефон
   phone: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 125, y: 111, scaleX: 1, scaleY: 1 },
     tooltip1: { x: -345, y: -517, scaleX: 0.842, scaleY: 0.842 },
-    tooltip2_phase1: { x: -110, y: -458, scaleX: 0.85, scaleY: 0.85 },
+    tooltip2: { x: -85, y: -460, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 121, y: -517, scaleX: 0.844, scaleY: 0.844 },
+    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    tooltip2_phase1: { x: -110, y: -458, scaleX: 0.85, scaleY: 0.85 },
+    italian_man_phase2: { x: -249, y: 194, scaleX: 1, scaleY: 1 },
+    old_grambler_phase2: { x: 53, y: 101, scaleX: 1, scaleY: 1 },
+    tooltip1_phase2: { x: -241, y: -542, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3_phase2: { x: 37, y: -542, scaleX: 0.932, scaleY: 0.932 },
   },
   // 9:21 — сверх-вытянутый вертикальный
   ultraTall: {
@@ -95,10 +119,12 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -348, y: -531, scaleX: 1, scaleY: 1 },
     tooltip2: { x: -111, y: -460, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 121, y: -519, scaleX: 1, scaleY: 1 },
-    italian_man_phase2: { x: -249, y: 194, scaleX: 1, scaleY: 1 },
-    old_grambler_phase2: { x: 53, y: 101, scaleX: 1, scaleY: 1 },
     pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
     tooltip2_phase1: { x: -113, y: -460, scaleX: 0.85, scaleY: 0.85 },
+    italian_man_phase2: { x: -249, y: 194, scaleX: 1, scaleY: 1 },
+    old_grambler_phase2: { x: 53, y: 101, scaleX: 1, scaleY: 1 },
+    tooltip1_phase2: { x: -244, y: -535, scaleX: 0.93, scaleY: 0.93 },
+    tooltip3_phase2: { x: 38, y: -528, scaleX: 0.932, scaleY: 0.932 },
   },
 };
 
@@ -1207,7 +1233,11 @@ export default class EditorTool {
     if (!bucket) return;
     const layout = merged[bucket];
 
-    if (!this.targets.length) this.collectTargets();
+    // Перебираем targets ЗАНОВО — phase могла поменяться (например,
+    // applyStoredLayout вызывается из spawnBuyerInSlot после release).
+    // Без этого id оставались бы фазы старта (phase 1) и ключи
+    // *_phase2 не подхватывались бы.
+    this.collectTargets();
     const isPortrait = isPortraitBucket(bucket);
     for (const t of this.targets) {
       const e = layout[t.desc.id];
