@@ -415,9 +415,13 @@ export default class PlayableController extends BaseObject {
       // (новый разблокированный топпинг). После hideUpgradeOverlay
       // мы вызовем _assignOrder() и покажем tooltip.
       buyer.pendingOrder = true;
-      // Скрываем tooltip явно — он мог остаться видимым от предыдущего
-      // клиента, иначе игрок увидел бы старые иконки.
-      if (tooltip && typeof tooltip.hide === "function") tooltip.hide();
+      // Скрываем tooltip синхронно. Не дёргаем tooltip.hide() — он
+      // async, и его hide-анимация может позже перезатереть visible=false
+      // поверх показанного через _forceShowTooltip в hideUpgradeOverlay.
+      if (tooltip && tooltip.view) {
+        tooltip.view.visible = false;
+        if (tooltip.container) tooltip.container.visible = false;
+      }
     } else {
       this._assignOrder(buyer);
     }
@@ -432,6 +436,32 @@ export default class PlayableController extends BaseObject {
       // ингредиентов (новый клиент мог разблокировать какой-то топинг).
       this.updateProductsInteractive();
       this.updateTortillaInteractive();
+    }
+  }
+
+  // tooltip.show() — async (запускает alphaScaleShow animation), а до
+  // этого мы могли вызвать async tooltip.hide() в spawnBuyerInSlot для
+  // pending-клиента. Если hide-анимация ещё бежит, её onComplete
+  // позже перезатрёт visible/alpha и tooltip останется невидимым.
+  // Принудительно сбрасываем visual state и затем дёргаем show, чтобы
+  // animation стартовала с чистой точки.
+  _forceShowTooltip(tooltip) {
+    if (!tooltip) return;
+    if (tooltip.view) {
+      tooltip.view.visible = true;
+      tooltip.view.alpha = 1;
+      tooltip.view.scale && tooltip.view.scale.set(1, 1);
+    }
+    const container = tooltip.container;
+    if (container) {
+      container.visible = true;
+      container.alpha = 1;
+      container.scale && container.scale.set(1, 1);
+    }
+    if (typeof tooltip.show === "function") {
+      try {
+        tooltip.show();
+      } catch (e) {}
     }
   }
 
@@ -1359,9 +1389,7 @@ export default class PlayableController extends BaseObject {
       if (!buyer || !buyer.pendingOrder) continue;
       this._assignOrder(buyer);
       buyer.pendingOrder = false;
-      if (buyer.tooltip && typeof buyer.tooltip.show === "function") {
-        buyer.tooltip.show();
-      }
+      this._forceShowTooltip(buyer.tooltip);
     }
     this.updateProductsInteractive();
     this.updateTortillaInteractive();
