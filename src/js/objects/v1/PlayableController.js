@@ -1294,6 +1294,16 @@ export default class PlayableController extends BaseObject {
     if (!this.upgradeOverlayActive) return;
     this.upgradeOverlayActive = false;
 
+    // Если в очереди ещё есть апгрейды — следующий покажется сразу,
+    // спавн пустых слотов сейчас не запускаем: setTimeout-ы спавна
+    // успели бы выполниться уже при показанном следующем overlay
+    // (там spawnBuyerInSlot обрывается по upgradeOverlayActive),
+    // и слоты бы залипли пустыми. Спавним только после последнего hide.
+    if (this._pendingUpgrades > 0) {
+      this._tryShowNextUpgrade();
+      return;
+    }
+
     // Спавним клиентов в пустых слотах (спавны во время паузы подавлялись).
     for (let i = 0; i < SLOT_COUNT; i++) {
       if (!this.activeBuyers[i] && this.hasMoreBuyers()) {
@@ -1308,9 +1318,6 @@ export default class PlayableController extends BaseObject {
 
     // Восстановим tutorial (если есть открытые заказы).
     setTimeout(() => this.updateTutorial(), 600);
-
-    // Показать следующий апгрейд из очереди, если есть.
-    this._tryShowNextUpgrade();
   }
 
   _repairUnsolvableSlots() {
