@@ -1294,13 +1294,15 @@ export default class PlayableController extends BaseObject {
     if (!this.upgradeOverlayActive) return;
     this.upgradeOverlayActive = false;
 
-    // Если в очереди ещё есть апгрейды — следующий покажется сразу,
-    // спавн пустых слотов сейчас не запускаем: setTimeout-ы спавна
-    // успели бы выполниться уже при показанном следующем overlay
-    // (там spawnBuyerInSlot обрывается по upgradeOverlayActive),
-    // и слоты бы залипли пустыми. Спавним только после последнего hide.
+    // Если в очереди ещё есть апгрейды — следующий показываем после
+    // завершения hide-анимации overlay'я (~180ms). Иначе hide.onComplete
+    // поставит view.visible=false поверх уже показанного следующего
+    // overlay, и игрок увидит его лишь на мгновение.
+    // Спавн пустых слотов тоже откладываем до последнего hide: иначе
+    // setTimeout-ы спавна выполнятся при активном следующем overlay,
+    // и spawnBuyerInSlot их обрубит по upgradeOverlayActive.
     if (this._pendingUpgrades > 0) {
-      this._tryShowNextUpgrade();
+      setTimeout(() => this._tryShowNextUpgrade(), 250);
       return;
     }
 
