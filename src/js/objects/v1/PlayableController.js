@@ -234,6 +234,7 @@ export default class PlayableController extends BaseObject {
     this.emptyDishes = [OBJECTS.dish1];
 
     this.unlockedToppings = new Set();
+    this.unlockedCola = false;
     this.incomeBoosts = { meat: 0, tomato: 0, cucumbers: 0, fry: 0, cola: 0 };
     this.upgradeRoundIndex = 0;
     this.upgradeOverlayActive = false;
@@ -344,39 +345,43 @@ export default class PlayableController extends BaseObject {
     return dishes;
   }
 
-  // Шаблон считается решаемым, если все его non-meat/non-cola продукты
-  // разблокированы. Cola и meat доступны всегда.
+  // Шаблон считается решаемым, если все его non-meat продукты
+  // разблокированы. Meat доступен всегда; cola — только после
+  // соответствующего апгрейда.
   _templateSolvable(template) {
-    return template.products.every((p) => {
-      if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
-      return this.unlockedToppings.has(p);
-    });
+    return template.products.every((p) => this._productUnlocked(p));
   }
 
-  // Сколько в шаблоне заблокированных у игрока топпингов (помидор/огурец/
-  // картошка). 0 → решаем сразу; 1 → решаем после +1 апгрейда; >1 → не
-  // допускаем для рандома, иначе игрок не сможет закрыть.
+  _productUnlocked(p) {
+    if (p === PRODUCTS_TYPES.meat) return true;
+    if (p === OBJECTS.cola) return this.unlockedCola;
+    return this.unlockedToppings.has(p);
+  }
+
+  // Сколько в шаблоне заблокированных у игрока продуктов
+  // (топпинги + cola). 0 → решаем сразу; 1 → решаем после +1 апгрейда;
+  // >1 → не допускаем для рандома, иначе игрок не сможет закрыть.
   _templateLockedToppingCount(template) {
     let n = 0;
     for (const p of template.products) {
-      if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) continue;
-      if (!this.unlockedToppings.has(p)) n++;
+      if (p === PRODUCTS_TYPES.meat) continue;
+      if (!this._productUnlocked(p)) n++;
     }
     return n;
   }
 
-  // Топпинги, нужные хотя бы одному текущему открытому заказу, но ещё не
-  // разблокированные. Если непусто — апгрейды должны гарантированно
-  // предложить разблокировку одного из них.
-  _neededLockedToppings() {
+  // Продукты, нужные хотя бы одному текущему открытому заказу, но ещё
+  // не разблокированные. Если непусто — апгрейды должны гарантированно
+  // предложить разблокировку одного из них (топпинг или cola).
+  _neededLockedProducts() {
     const needed = new Set();
     for (const buyer of this.activeBuyers) {
       if (!buyer || buyer.pendingOrder) continue;
       for (const d of buyer.dishes) {
-        if (d.complete || d.cola) continue;
+        if (d.complete) continue;
         for (const p of d.products) {
-          if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) continue;
-          if (!this.unlockedToppings.has(p)) needed.add(p);
+          if (p === PRODUCTS_TYPES.meat) continue;
+          if (!this._productUnlocked(p)) needed.add(p);
         }
       }
     }
@@ -395,10 +400,7 @@ export default class PlayableController extends BaseObject {
       // нельзя, иначе ослабится anti-deadlock инвариант.
       if (b.pendingOrder) continue;
       const ok = b.dishes.every((d) =>
-        d.products.every((p) => {
-          if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
-          return this.unlockedToppings.has(p);
-        })
+        d.products.every((p) => this._productUnlocked(p))
       );
       if (ok) n++;
     }
@@ -667,13 +669,9 @@ export default class PlayableController extends BaseObject {
     return this.findBuyerForDishKey(dishKeyForProducts([OBJECTS.cola]));
   }
 
-  // Решаемо ли блюдо при текущих unlockedToppings.
+  // Решаемо ли блюдо при текущем состоянии апгрейдов.
   _dishIsSolvable(dish) {
-    if (dish.cola) return true;
-    return dish.products.every((p) => {
-      if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
-      return this.unlockedToppings.has(p);
-    });
+    return dish.products.every((p) => this._productUnlocked(p));
   }
 
   _pickPriorityBuyer(matches) {
@@ -764,10 +762,7 @@ export default class PlayableController extends BaseObject {
   // под заказ с заблокированным топпингом и попадает в ловушку.
   _currentSolvableDemand() {
     return this._currentDemand().filter((products) =>
-      products.every((p) => {
-        if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
-        return this.unlockedToppings.has(p);
-      })
+      products.every((p) => this._productUnlocked(p))
     );
   }
 
@@ -1216,6 +1211,18 @@ export default class PlayableController extends BaseObject {
       if (dish && dish.view) dish.view.visible = false;
     }
 
+    // Кола заблокирована до соответствующего апгрейда — скрываем все
+    // 3 стакана. После applyColaUpgrade — showDrinks() их вернёт.
+    if (!this.unlockedCola && this.cola && this.cola.children) {
+      this.cola.children.forEach((c) => {
+        if (c.baseObject && typeof c.baseObject.hide === "function") {
+          c.baseObject.hide();
+        } else {
+          c.visible = false;
+        }
+      });
+    }
+
     // Топпинги: tomato/cucumbers/fry — Food-контейнеры. Делаем сам контейнер
     // полупрозрачным (alpha 0.25) и блокируем интерактив. Бейдж ставим как
     // sibling в table.view, чтобы он остался непрозрачным.
@@ -1252,11 +1259,12 @@ export default class PlayableController extends BaseObject {
       (k) => !this.unlockedToppings.has(k)
     );
     const toppingAvail = lockedToppingKeys.length > 0;
+    const colaAvail = !this.unlockedCola;
 
-    // Доступные ingredient-keys для income (только разблокированные +
-    // всегда meat и cola).
+    // Доступные ingredient-keys для income — только реально разблокированные.
     const incomeIngredients = INCOME_KEYS.filter((k) => {
-      if (k === "meat" || k === "cola") return true;
+      if (k === "meat") return true;
+      if (k === "cola") return this.unlockedCola;
       return this.unlockedToppings.has(k);
     });
 
@@ -1305,32 +1313,56 @@ export default class PlayableController extends BaseObject {
       };
     };
 
+    const buildColaCard = () => ({
+      type: "cola",
+      productKey: "cola",
+      label: PRODUCT_LABELS.cola,
+      sub: "теперь доступно",
+      iconKey: CARD_ICONS.cola,
+      badge: "NEW",
+      accentColor: 0xd45d43,
+      apply: () => this.applyColaUpgrade(),
+    });
+
     const cats = [];
     if (plateAvail) cats.push("plate");
     if (toppingAvail) cats.push("topping");
+    if (colaAvail) cats.push("cola");
     cats.push("income"); // всегда
 
+    const buildOne = (cat, exclude, forcedTopping) => {
+      if (cat === "plate") return buildPlateCard();
+      if (cat === "topping") return buildToppingCard(forcedTopping);
+      if (cat === "cola") return buildColaCard();
+      return buildIncomeCard(exclude);
+    };
+
     // Если у активных клиентов есть незакрытые заказы с заблокированным
-    // топпингом — гарантируем, что одна из карточек разблокирует именно
-    // нужный. Иначе заказ зависнет до случайного выпадения апгрейда.
-    const needed = this._neededLockedToppings();
-    if (toppingAvail && needed.length > 0) {
-      const forcedKey = pickRandom(needed);
-      const c1 = buildToppingCard(forcedKey);
-      const otherCats = cats.filter((c) => c !== "topping");
-      const secondCat = otherCats.length
-        ? pickRandom(otherCats)
-        : "income";
-      const buildOne = (cat, exclude) => {
-        if (cat === "plate") return buildPlateCard();
-        if (cat === "topping") {
-          // Вторая topping-карта — другой ключ из locked.
-          const others = lockedToppingKeys.filter((k) => k !== forcedKey);
-          return buildToppingCard(others.length ? pickRandom(others) : null);
-        }
-        return buildIncomeCard(exclude);
-      };
-      const c2 = buildOne(secondCat, c1 && c1.productKey);
+    // топпингом или колой — гарантируем, что одна из карточек её разблокирует.
+    // Иначе заказ зависнет до случайного выпадения апгрейда.
+    const needed = this._neededLockedProducts();
+    if (needed.length > 0) {
+      const colaNeeded = needed.includes(OBJECTS.cola);
+      let c1;
+      let firstCat;
+      if (colaNeeded && colaAvail) {
+        c1 = buildColaCard();
+        firstCat = "cola";
+      } else {
+        const forcedKey = pickRandom(needed.filter((k) => k !== OBJECTS.cola));
+        c1 = buildToppingCard(forcedKey);
+        firstCat = "topping";
+      }
+      const otherCats = cats.filter((c) => c !== firstCat);
+      const secondCat = otherCats.length ? pickRandom(otherCats) : "income";
+      const others = lockedToppingKeys.filter(
+        (k) => k !== (c1 && c1.productKey)
+      );
+      const c2 = buildOne(
+        secondCat,
+        c1 && c1.productKey,
+        others.length ? pickRandom(others) : null
+      );
       return [c1, c2].filter(Boolean);
     }
 
@@ -1344,14 +1376,8 @@ export default class PlayableController extends BaseObject {
       const first = pickRandom(weighted);
       const remaining = cats.filter((c) => c !== first);
       const second = pickRandom(remaining);
-
-      const buildOne = (cat, exclude) => {
-        if (cat === "plate") return buildPlateCard();
-        if (cat === "topping") return buildToppingCard();
-        return buildIncomeCard(exclude);
-      };
-      const c1 = buildOne(first, null);
-      const c2 = buildOne(second, c1 && c1.productKey);
+      const c1 = buildOne(first, null, null);
+      const c2 = buildOne(second, c1 && c1.productKey, null);
       return [c1, c2].filter(Boolean);
     }
 
@@ -1376,6 +1402,14 @@ export default class PlayableController extends BaseObject {
 
     // canTapTortilla теперь true — обновим интерактив тортильи.
     this.updateTortillaInteractive();
+  }
+
+  applyColaUpgrade() {
+    if (this.unlockedCola) return;
+    this.unlockedCola = true;
+    // Возвращаем все 3 стакана на стол. showDrinks() сортирует и
+    // показывает каждый, ту же логику использует maybeRefillCola.
+    this.showDrinks();
   }
 
   applyToppingUpgrade(key) {
