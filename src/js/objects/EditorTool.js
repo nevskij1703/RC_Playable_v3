@@ -195,18 +195,25 @@ const TARGETS = [
   { id: "tooltip3", linkID: OBJECTS.tooltip3, labelOwner: "old_grambler" },
 ];
 
-// Маппинг character → phase-specific layout key.
+// Маппинг character/tooltip → phase-specific layout key. Используется
+// и для персонажей (drag-таргеты с desc.child), и для tooltip'ов
+// (drag-таргеты с desc.linkID и id="tooltipN").
 const PHASE_OVERRIDES = {
-  1: { pretty_woman: "pretty_woman_phase1" },
+  1: {
+    pretty_woman: "pretty_woman_phase1",
+    tooltip2: "tooltip2_phase1",
+  },
   2: {
     italian_man: "italian_man_phase2",
     old_grambler: "old_grambler_phase2",
+    tooltip1: "tooltip1_phase2",
+    tooltip3: "tooltip3_phase2",
   },
 };
 
-function _phaseOverrideId(charName, phase) {
+function _phaseOverrideId(name, phase) {
   const map = PHASE_OVERRIDES[phase];
-  return (map && map[charName]) || charName;
+  return (map && map[name]) || name;
 }
 
 function _currentRcpPhase() {
@@ -705,13 +712,13 @@ export default class EditorTool {
       if (desc.child) obj = buyers && buyers[desc.child];
       else if (desc.linkID) obj = ObjectLinks.get(desc.linkID);
       if (!obj || !obj.view) continue;
-      // Для character-таргетов подменяем id на phase-specific ключ —
-      // тогда позиции для onboarding-фаз сохранятся отдельно.
-      const phaseDesc = desc.child
-        ? Object.assign({}, desc, {
-            id: _phaseOverrideId(desc.child, phase),
-          })
-        : desc;
+      // Подменяем id на phase-specific (если он есть в PHASE_OVERRIDES)
+      // — и для character'ов (desc.child), и для tooltip'ов (desc.id).
+      // Так позиции для onboarding-фаз сохраняются отдельно.
+      const baseName = desc.child || desc.id;
+      const phaseId = _phaseOverrideId(baseName, phase);
+      const phaseDesc =
+        phaseId === desc.id ? desc : Object.assign({}, desc, { id: phaseId });
       this.targets.push({ desc: phaseDesc, obj });
     }
   }
