@@ -319,11 +319,13 @@ export default class PlayableController extends BaseObject {
 
   generateRandomOrder(opts) {
     const strict = opts && opts.strictSolvable;
-    // Если strictSolvable — оставляем только шаблоны, у которых каждый
-    // продукт уже разблокирован (meat/cola всегда доступны).
+    // strictSolvable — все продукты разблокированы (заказ решаем сейчас).
+    // Иначе — допускаем заказ с максимум ОДНИМ заблокированным топпингом,
+    // чтобы за +1 апгрейд игрок мог его закрыть. Заказы с двумя залоченными
+    // топпингами не появляются никогда (требуют 2 апгрейда сразу).
     const pool = strict
       ? DISH_TEMPLATES.filter((t) => this._templateSolvable(t))
-      : DISH_TEMPLATES;
+      : DISH_TEMPLATES.filter((t) => this._templateLockedToppingCount(t) <= 1);
     const safePool = pool.length ? pool : DISH_TEMPLATES;
 
     const dishCount = 1 + Math.floor(Math.random() * RCP_SETTINGS.maxDishesPerOrder);
@@ -349,6 +351,36 @@ export default class PlayableController extends BaseObject {
       if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
       return this.unlockedToppings.has(p);
     });
+  }
+
+  // Сколько в шаблоне заблокированных у игрока топпингов (помидор/огурец/
+  // картошка). 0 → решаем сразу; 1 → решаем после +1 апгрейда; >1 → не
+  // допускаем для рандома, иначе игрок не сможет закрыть.
+  _templateLockedToppingCount(template) {
+    let n = 0;
+    for (const p of template.products) {
+      if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) continue;
+      if (!this.unlockedToppings.has(p)) n++;
+    }
+    return n;
+  }
+
+  // Топпинги, нужные хотя бы одному текущему открытому заказу, но ещё не
+  // разблокированные. Если непусто — апгрейды должны гарантированно
+  // предложить разблокировку одного из них.
+  _neededLockedToppings() {
+    const needed = new Set();
+    for (const buyer of this.activeBuyers) {
+      if (!buyer || buyer.pendingOrder) continue;
+      for (const d of buyer.dishes) {
+        if (d.complete || d.cola) continue;
+        for (const p of d.products) {
+          if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) continue;
+          if (!this.unlockedToppings.has(p)) needed.add(p);
+        }
+      }
+    }
+    return Array.from(needed);
   }
 
   // Считает сколько уже-активных клиентов имеют решаемые заказы (все блюда —
@@ -1223,8 +1255,9 @@ export default class PlayableController extends BaseObject {
       apply: () => this.applyPlateUpgrade(),
     });
 
-    const buildToppingCard = () => {
-      const k = pickRandom(lockedToppingKeys);
+    const buildToppingCard = (forcedKey) => {
+      const k = forcedKey || pickRandom(lockedToppingKeys);
+      if (!k) return null;
       return {
         type: "topping",
         productKey: k,
@@ -1258,6 +1291,30 @@ export default class PlayableController extends BaseObject {
     if (plateAvail) cats.push("plate");
     if (toppingAvail) cats.push("topping");
     cats.push("income"); // всегда
+
+    // Если у активных клиентов есть незакрытые заказы с заблокированным
+    // топпингом — гарантируем, что одна из карточек разблокирует именно
+    // нужный. Иначе заказ зависнет до случайного выпадения апгрейда.
+    const needed = this._neededLockedToppings();
+    if (toppingAvail && needed.length > 0) {
+      const forcedKey = pickRandom(needed);
+      const c1 = buildToppingCard(forcedKey);
+      const otherCats = cats.filter((c) => c !== "topping");
+      const secondCat = otherCats.length
+        ? pickRandom(otherCats)
+        : "income";
+      const buildOne = (cat, exclude) => {
+        if (cat === "plate") return buildPlateCard();
+        if (cat === "topping") {
+          // Вторая topping-карта — другой ключ из locked.
+          const others = lockedToppingKeys.filter((k) => k !== forcedKey);
+          return buildToppingCard(others.length ? pickRandom(others) : null);
+        }
+        return buildIncomeCard(exclude);
+      };
+      const c2 = buildOne(secondCat, c1 && c1.productKey);
+      return [c1, c2].filter(Boolean);
+    }
 
     if (cats.length >= 2) {
       // Веса: топпинги/тарелки приоритетнее income (чтобы игрок успел
