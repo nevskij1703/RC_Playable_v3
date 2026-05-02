@@ -420,18 +420,35 @@ export default class PlayableController extends BaseObject {
     return this.totalSpawned < TOTAL_BUYERS;
   }
 
-  // Onboarding ramp: первый клиент один, потом одновременно 2,
-  // дальше — стандартные SLOT_COUNT (обычно 3). totalServed=0 → 1 слот;
-  // totalServed in [1, 2] → 2 слота; totalServed >= 3 → SLOT_COUNT.
-  _currentSlotLimit() {
-    if (this.totalServed < 1) return Math.min(1, SLOT_COUNT);
-    if (this.totalServed < 3) return Math.min(2, SLOT_COUNT);
-    return SLOT_COUNT;
+  // Onboarding-фаза:
+  //   phase 1 (ts=0)         → одна женщина в центре (slot 1).
+  //   phase 2 (ts in [1, 2]) → мужик слева и дед справа (slots 0 и 2);
+  //                            slot 1 пуст; нет re-spawn до тех пор, пока
+  //                            оба не обслужены.
+  //   phase 3 (ts >= 3)      → все 3 слота, классический re-spawn:
+  //                            ушёл клиент → пришёл новый.
+  _currentPhase() {
+    if (this.totalServed < 1) return 1;
+    if (this.totalServed < 3) return 2;
+    return 3;
+  }
+
+  // Какие slot-индексы должны быть заняты в текущей фазе.
+  _phaseSlots() {
+    const phase = this._currentPhase();
+    if (phase === 1) return SLOT_COUNT >= 2 ? [1] : [0];
+    if (phase === 2)
+      return SLOT_COUNT >= 3 ? [0, 2] : SLOT_COUNT >= 2 ? [0, 1] : [0];
+    return Array.from({ length: SLOT_COUNT }, (_, i) => i);
+  }
+
+  _isSlotActiveInPhase(slotIndex) {
+    return this._phaseSlots().includes(slotIndex);
   }
 
   spawnBuyerInSlot(slotIndex, isInitial = false) {
     if (!this.hasMoreBuyers()) return;
-    if (slotIndex >= this._currentSlotLimit()) return;
+    if (!this._isSlotActiveInPhase(slotIndex)) return;
     if (this.activeBuyers[slotIndex]) return;
     if (this.spawningSlots.has(slotIndex)) return;
 
@@ -626,23 +643,40 @@ export default class PlayableController extends BaseObject {
     // больше не нужен и должен быть locked.
     this.updateProductsInteractive();
 
-    setTimeout(() => {
-      this.spawnBuyerInSlot(slotIndex, false);
-      this.updateTutorial();
-    }, 800 + TIMINGS.characterMoveOut + SPAWN_DELAY_MS);
-
-    // Onboarding ramp: после release лимит мог увеличиться (1→2 или
-    // 2→3). Заспавнить дополнительные слоты, кроме своего (он уже
-    // в авто-spawn выше).
-    const limit = this._currentSlotLimit();
-    for (let i = 0; i < limit; i++) {
-      if (i === slotIndex) continue;
-      if (this.activeBuyers[i] || this.spawningSlots.has(i)) continue;
-      const stagger = (i + 1) * 220;
+    // Re-spawn после release: только в phase 3 — стандартный «один ушёл
+    // → новый пришёл». В phase 2 (после первого release) пропускаем
+    // re-spawn, ждём пока второй клиент тоже уйдёт. Переходы между
+    // фазами обрабатывает _spawnSlotsForCurrentPhase ниже.
+    if (this._currentPhase() >= 3 && this._isSlotActiveInPhase(slotIndex)) {
+      setTimeout(() => {
+        this.spawnBuyerInSlot(slotIndex, false);
+        this.updateTutorial();
+      }, 800 + TIMINGS.characterMoveOut + SPAWN_DELAY_MS);
+    } else {
+      // Tutorial всё равно обновим — пустой слот без апдейта.
       setTimeout(
-        () => this.spawnBuyerInSlot(i, false),
-        800 + TIMINGS.characterMoveOut + SPAWN_DELAY_MS + stagger
+        () => this.updateTutorial(),
+        800 + TIMINGS.characterMoveOut + SPAWN_DELAY_MS
       );
+    }
+
+    // Переход фаз: 1→2 при ts=1, 2→3 при ts=3. Заспавнить новых
+    // соседей через staggered задержку.
+    this._spawnSlotsForCurrentPhase(slotIndex);
+  }
+
+  // Спавнит «недостающих» клиентов для текущей фазы. Не трогает свой
+  // только что освобождённый slot — он либо уже в авто-spawn (phase 3),
+  // либо в этой фазе пуст и так (phase 2 ждёт второго release).
+  _spawnSlotsForCurrentPhase(skipSlot) {
+    const slots = this._phaseSlots();
+    let stagger = 220;
+    for (const i of slots) {
+      if (i === skipSlot) continue;
+      if (this.activeBuyers[i] || this.spawningSlots.has(i)) continue;
+      const delay = 800 + TIMINGS.characterMoveOut + SPAWN_DELAY_MS + stagger;
+      setTimeout(() => this.spawnBuyerInSlot(i, false), delay);
+      stagger += 220;
     }
   }
 
@@ -1584,13 +1618,14 @@ export default class PlayableController extends BaseObject {
     this.updateProductsInteractive();
     this.updateTortillaInteractive();
 
-    // Спавним клиентов в пустых слотах (спавны во время паузы подавлялись).
-    // Учитываем onboarding-лимит: первая фаза = 1 слот, вторая = 2, далее 3.
-    const limit = this._currentSlotLimit();
-    for (let i = 0; i < limit; i++) {
+    // Спавним клиентов в пустых slot'ах ТЕКУЩЕЙ фазы (спавны во
+    // время паузы подавлялись). _phaseSlots() — onboarding-aware.
+    const phaseSlots = this._phaseSlots();
+    let stagger = 0;
+    for (const i of phaseSlots) {
       if (!this.activeBuyers[i] && this.hasMoreBuyers()) {
-        // Небольшой stagger чтобы не появились все одновременно.
-        setTimeout(() => this.spawnBuyerInSlot(i, false), i * 220);
+        setTimeout(() => this.spawnBuyerInSlot(i, false), stagger);
+        stagger += 220;
       }
     }
 
