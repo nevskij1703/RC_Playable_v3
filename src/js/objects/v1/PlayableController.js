@@ -36,7 +36,7 @@ export const RCP_SETTINGS_KEY = "rcp_runtime_settings_v1";
 export const RCP_SETTINGS_DEFAULTS = {
   totalBuyers: 20,
   slotCount: 3,
-  maxDishesPerOrder: 1,
+  maxDishesPerOrder: 3,
   upgradeInterval: 3,
   prices: {
     tortilla: 3,
