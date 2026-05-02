@@ -43,88 +43,94 @@ function isPortraitBucket(b) {
 const DEFAULT_LAYOUT = {
   // 21:9 и шире — сверхширокий горизонтальный
   ultraWide: {
-    italian_man: { x: -353, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -116, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -310, y: -433, scaleX: 0.691, scaleY: 0.691 },
-    tooltip2: { x: -85, y: -440, scaleX: 0.85, scaleY: 0.85 },
-    tooltip3: { x: 159, y: -432, scaleX: 0.691, scaleY: 0.691 },
-    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
-    tooltip2_phase1: { x: -109, y: -435, scaleX: 0.85, scaleY: 0.85 },
-    italian_man_phase2: { x: -242, y: 196, scaleX: 1, scaleY: 1 },
-    old_grambler_phase2: { x: 51, y: 112, scaleX: 1, scaleY: 1 },
-    tooltip1_phase2: { x: -213, y: -427, scaleX: 0.718, scaleY: 0.718 },
-    tooltip3_phase2: { x: 65, y: -426, scaleX: 0.721, scaleY: 0.721 },
+    tooltipScale: 0.72,
+    italian_man: { x: -353, y: 205 },
+    pretty_woman: { x: -116, y: 120 },
+    old_grambler: { x: 126, y: 114 },
+    tooltip1: { x: -310, y: -433 },
+    tooltip2: { x: -85, y: -440 },
+    tooltip3: { x: 159, y: -432 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -109, y: -435 },
+    italian_man_phase2: { x: -242, y: 196 },
+    old_grambler_phase2: { x: 51, y: 112 },
+    tooltip1_phase2: { x: -213, y: -427 },
+    tooltip3_phase2: { x: 65, y: -426 },
   },
   // Классический горизонтальный десктоп (16:9, 16:10, 5:3, 3:2)
   desktop: {
-    italian_man: { x: -353, y: 201, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -116, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -305, y: -409, scaleX: 0.658, scaleY: 0.658 },
-    tooltip2: { x: -85, y: -440, scaleX: 0.85, scaleY: 0.85 },
-    tooltip3: { x: 158, y: -409, scaleX: 0.625, scaleY: 0.625 },
-    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
-    tooltip2_phase1: { x: -115, y: -433, scaleX: 0.85, scaleY: 0.85 },
-    italian_man_phase2: { x: -242, y: 196, scaleX: 1, scaleY: 1 },
-    old_grambler_phase2: { x: 51, y: 112, scaleX: 1, scaleY: 1 },
-    tooltip1_phase2: { x: -209, y: -422, scaleX: 0.718, scaleY: 0.718 },
-    tooltip3_phase2: { x: 66, y: -421, scaleX: 0.721, scaleY: 0.721 },
+    tooltipScale: 0.72,
+    italian_man: { x: -353, y: 201 },
+    pretty_woman: { x: -116, y: 120 },
+    old_grambler: { x: 126, y: 114 },
+    tooltip1: { x: -305, y: -409 },
+    tooltip2: { x: -85, y: -440 },
+    tooltip3: { x: 158, y: -409 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -115, y: -433 },
+    italian_man_phase2: { x: -242, y: 196 },
+    old_grambler_phase2: { x: 51, y: 112 },
+    tooltip1_phase2: { x: -209, y: -422 },
+    tooltip3_phase2: { x: 66, y: -421 },
   },
   // Почти квадратный экран (4:3 лэндскейп) — пользователь не настраивал,
   // оставляем прежние значения как fallback.
   square: {
-    italian_man: { x: -363, y: 207, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -155, y: 119, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -321, y: -412, scaleX: 0.682, scaleY: 0.682 },
-    tooltip2: { x: -104, y: -411, scaleX: 0.691, scaleY: 0.691 },
-    tooltip3: { x: 151, y: -412, scaleX: 0.692, scaleY: 0.692 },
+    tooltipScale: 0.69,
+    italian_man: { x: -363, y: 207 },
+    pretty_woman: { x: -155, y: 119 },
+    old_grambler: { x: 126, y: 114 },
+    tooltip1: { x: -321, y: -412 },
+    tooltip2: { x: -104, y: -411 },
+    tooltip3: { x: 151, y: -412 },
   },
   // 3:4 — вертикальный планшет
   tablet: {
-    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -116, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 127, y: 112, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -353, y: -544, scaleX: 0.93, scaleY: 0.93 },
-    tooltip2: { x: 2, y: -450, scaleX: 0.85, scaleY: 0.85 },
-    tooltip3: { x: 131, y: -538, scaleX: 0.932, scaleY: 0.932 },
-    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
-    tooltip2_phase1: { x: -111, y: -461, scaleX: 0.85, scaleY: 0.85 },
-    italian_man_phase2: { x: -242, y: 196, scaleX: 1, scaleY: 1 },
-    old_grambler_phase2: { x: 51, y: 112, scaleX: 1, scaleY: 1 },
-    tooltip1_phase2: { x: -238, y: -535, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3_phase2: { x: 45, y: -529, scaleX: 0.932, scaleY: 0.932 },
+    tooltipScale: 0.93,
+    italian_man: { x: -360, y: 205 },
+    pretty_woman: { x: -116, y: 120 },
+    old_grambler: { x: 127, y: 112 },
+    tooltip1: { x: -353, y: -544 },
+    tooltip2: { x: 2, y: -450 },
+    tooltip3: { x: 131, y: -538 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -111, y: -461 },
+    italian_man_phase2: { x: -242, y: 196 },
+    old_grambler_phase2: { x: 51, y: 112 },
+    tooltip1_phase2: { x: -238, y: -535 },
+    tooltip3_phase2: { x: 45, y: -529 },
   },
   // 9:16 — вертикальный телефон
   phone: {
-    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 125, y: 111, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -345, y: -517, scaleX: 0.842, scaleY: 0.842 },
-    tooltip2: { x: -85, y: -460, scaleX: 0.85, scaleY: 0.85 },
-    tooltip3: { x: 121, y: -517, scaleX: 0.844, scaleY: 0.844 },
-    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
-    tooltip2_phase1: { x: -110, y: -458, scaleX: 0.85, scaleY: 0.85 },
-    italian_man_phase2: { x: -249, y: 194, scaleX: 1, scaleY: 1 },
-    old_grambler_phase2: { x: 53, y: 101, scaleX: 1, scaleY: 1 },
-    tooltip1_phase2: { x: -241, y: -542, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3_phase2: { x: 37, y: -542, scaleX: 0.932, scaleY: 0.932 },
+    tooltipScale: 0.85,
+    italian_man: { x: -360, y: 205 },
+    pretty_woman: { x: -134, y: 122 },
+    old_grambler: { x: 125, y: 111 },
+    tooltip1: { x: -345, y: -517 },
+    tooltip2: { x: -85, y: -460 },
+    tooltip3: { x: 121, y: -517 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -110, y: -458 },
+    italian_man_phase2: { x: -249, y: 194 },
+    old_grambler_phase2: { x: 53, y: 101 },
+    tooltip1_phase2: { x: -241, y: -542 },
+    tooltip3_phase2: { x: 37, y: -542 },
   },
   // 9:21 — сверх-вытянутый вертикальный
   ultraTall: {
-    italian_man: { x: -354, y: 203, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 132, y: 108, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -348, y: -531, scaleX: 1, scaleY: 1 },
-    tooltip2: { x: -111, y: -460, scaleX: 0.85, scaleY: 0.85 },
-    tooltip3: { x: 121, y: -519, scaleX: 1, scaleY: 1 },
-    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
-    tooltip2_phase1: { x: -113, y: -460, scaleX: 0.85, scaleY: 0.85 },
-    italian_man_phase2: { x: -249, y: 194, scaleX: 1, scaleY: 1 },
-    old_grambler_phase2: { x: 53, y: 101, scaleX: 1, scaleY: 1 },
-    tooltip1_phase2: { x: -244, y: -535, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3_phase2: { x: 38, y: -528, scaleX: 0.932, scaleY: 0.932 },
+    tooltipScale: 0.93,
+    italian_man: { x: -354, y: 203 },
+    pretty_woman: { x: -134, y: 122 },
+    old_grambler: { x: 132, y: 108 },
+    tooltip1: { x: -348, y: -531 },
+    tooltip2: { x: -111, y: -460 },
+    tooltip3: { x: 121, y: -519 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -113, y: -460 },
+    italian_man_phase2: { x: -249, y: 194 },
+    old_grambler_phase2: { x: 53, y: 101 },
+    tooltip1_phase2: { x: -244, y: -535 },
+    tooltip3_phase2: { x: 38, y: -528 },
   },
 };
 
@@ -214,16 +220,22 @@ function migrate(stored) {
 // так же как кнопки Install и Mute прибиты к нижнему краю.
 // Базовый набор target'ов (для phase 3+ — классика). Phase 1/2 используют
 // тех же character'ов, но id зашит phase-суффиксом, чтобы layout хранил
-// отдельные позиции. _collectTargetsForPhase ниже подменяет id в зависимости
+// отдельные позиции. PHASE_OVERRIDES ниже подменяет id в зависимости
 // от текущей фазы (Phase 1: pretty_woman_phase1; Phase 2: italian_man_phase2,
 // old_grambler_phase2).
+//
+// Флаги:
+//   noScale         — клиент. Масштаб всегда 1, в editor не редактируется.
+//   sharedScaleKey  — tooltip'ы. Масштаб общий (на bucket) и хранится по
+//                     этому ключу — не зависит от phase, чтобы баблы во
+//                     всех онбординг-волнах были одинакового размера.
 const TARGETS = [
-  { id: "italian_man", child: "italian_man" },
-  { id: "pretty_woman", child: "pretty_woman" },
-  { id: "old_grambler", child: "old_grambler" },
-  { id: "tooltip1", linkID: OBJECTS.tooltip1, labelOwner: "italian_man" },
-  { id: "tooltip2", linkID: OBJECTS.tooltip2, labelOwner: "pretty_woman" },
-  { id: "tooltip3", linkID: OBJECTS.tooltip3, labelOwner: "old_grambler" },
+  { id: "italian_man", child: "italian_man", noScale: true },
+  { id: "pretty_woman", child: "pretty_woman", noScale: true },
+  { id: "old_grambler", child: "old_grambler", noScale: true },
+  { id: "tooltip1", linkID: OBJECTS.tooltip1, labelOwner: "italian_man", sharedScaleKey: "tooltipScale" },
+  { id: "tooltip2", linkID: OBJECTS.tooltip2, labelOwner: "pretty_woman", sharedScaleKey: "tooltipScale" },
+  { id: "tooltip3", linkID: OBJECTS.tooltip3, labelOwner: "old_grambler", sharedScaleKey: "tooltipScale" },
 ];
 
 // Маппинг character/tooltip → phase-specific layout key. Используется
@@ -1014,11 +1026,14 @@ export default class EditorTool {
       const row = document.createElement("div");
       row.style.cssText =
         "display:flex;align-items:center;gap:3px;margin-bottom:4px;font-size:10px;color:#fff;";
+      const sField = t.desc.noScale
+        ? ""
+        : `<span>S</span><input data-id="${t.desc.id}" data-prop="s" type="number" step="0.01" style="${inputStyle}">`;
       row.innerHTML =
         `<span style="width:90px;font-weight:700;color:#fff;">${t.desc.id}</span>` +
         `<span>X</span><input data-id="${t.desc.id}" data-prop="x" type="number" step="1" style="${inputStyle}">` +
         `<span>Y</span><input data-id="${t.desc.id}" data-prop="y" type="number" step="1" style="${inputStyle}">` +
-        `<span>S</span><input data-id="${t.desc.id}" data-prop="s" type="number" step="0.01" style="${inputStyle}">`;
+        sField;
       wrap.appendChild(row);
     }
     wrap.querySelectorAll("input").forEach((inp) => {
@@ -1072,8 +1087,22 @@ export default class EditorTool {
       if (inp.dataset.prop === "x") v.position.x = val;
       else if (inp.dataset.prop === "y") v.position.y = val;
       else if (inp.dataset.prop === "s") {
+        if (t.desc.noScale) return; // клиенты — scale фиксирован
         v.scale.x = val;
         v.scale.y = val;
+        // Tooltip — общий scale: синхронизируем со всеми tooltip-таргетами.
+        if (t.desc.sharedScaleKey) {
+          for (const other of this.targets) {
+            if (
+              other !== t &&
+              other.desc.sharedScaleKey === t.desc.sharedScaleKey &&
+              other.obj.view
+            ) {
+              other.obj.view.scale.x = val;
+              other.obj.view.scale.y = val;
+            }
+          }
+        }
       }
     }
     this.selected = t;
@@ -1123,11 +1152,26 @@ export default class EditorTool {
   _onWheel(e) {
     if (!this.selected) return;
     if (e.target && e.target.tagName !== "CANVAS") return;
+    if (this.selected.desc.noScale) return; // клиенты — масштаб фиксирован
     e.preventDefault();
     const v = this.selected.obj.view;
     const k = e.deltaY > 0 ? 0.95 : 1.05;
-    v.scale.x = Math.max(0.1, Math.min(5, v.scale.x * k));
-    v.scale.y = Math.max(0.1, Math.min(5, v.scale.y * k));
+    const newScale = Math.max(0.1, Math.min(5, v.scale.x * k));
+    v.scale.x = newScale;
+    v.scale.y = newScale;
+    // Tooltip — общий масштаб: применяем сразу ко всем tooltip-таргетам.
+    if (this.selected.desc.sharedScaleKey) {
+      for (const t of this.targets) {
+        if (
+          t !== this.selected &&
+          t.desc.sharedScaleKey === this.selected.desc.sharedScaleKey &&
+          t.obj.view
+        ) {
+          t.obj.view.scale.x = newScale;
+          t.obj.view.scale.y = newScale;
+        }
+      }
+    }
     this._showSelected();
     this._refreshParamsBlock();
     this._autoSaveDebounced();
@@ -1167,12 +1211,17 @@ export default class EditorTool {
           yOut = v.position.y - off.y;
         }
       }
-      data[bucket][t.desc.id] = {
-        x: Math.round(xOut),
-        y: Math.round(yOut),
-        scaleX: +v.scale.x.toFixed(3),
-        scaleY: +v.scale.y.toFixed(3),
-      };
+      const entry = { x: Math.round(xOut), y: Math.round(yOut) };
+      if (!t.desc.noScale && !t.desc.sharedScaleKey) {
+        entry.scaleX = +v.scale.x.toFixed(3);
+        entry.scaleY = +v.scale.y.toFixed(3);
+      }
+      data[bucket][t.desc.id] = entry;
+
+      // Tooltip-масштаб общий на bucket — пишется один раз в bucket.tooltipScale.
+      if (t.desc.sharedScaleKey) {
+        data[bucket][t.desc.sharedScaleKey] = +v.scale.x.toFixed(3);
+      }
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }
@@ -1244,6 +1293,22 @@ export default class EditorTool {
       if (!e) continue;
       const v = t.obj.view;
       if (!v) continue;
+
+      // Ширина scale: для tooltip берём общий bucket-scale; для character
+      // — фиксированно 1; для остальных — из их собственной записи.
+      let entryScaleX = e.scaleX;
+      let entryScaleY = e.scaleY;
+      if (t.desc.sharedScaleKey) {
+        const s = layout[t.desc.sharedScaleKey];
+        if (typeof s === "number" && isFinite(s)) {
+          entryScaleX = s;
+          entryScaleY = s;
+        }
+      }
+      if (t.desc.noScale) {
+        entryScaleX = 1;
+        entryScaleY = 1;
+      }
       if (t.desc.topAnchor) {
         // saved.x/y — offsets от align(0.5, 0) (top-center) канваса.
         // Пишем в config (для анимаций / engine resize handlers) и зовём
@@ -1274,17 +1339,17 @@ export default class EditorTool {
             v.position.y = e.y;
           }
         }
-        if (e.scaleX != null) {
-          v.scale.x = e.scaleX;
-          v.scale.y = e.scaleY;
+        if (entryScaleX != null) {
+          v.scale.x = entryScaleX;
+          v.scale.y = entryScaleY;
         }
         continue;
       }
       v.position.x = e.x;
       v.position.y = e.y;
-      if (e.scaleX != null) {
-        v.scale.x = e.scaleX;
-        v.scale.y = e.scaleY;
+      if (entryScaleX != null) {
+        v.scale.x = entryScaleX;
+        v.scale.y = entryScaleY;
       }
       // Зеркалим в config — чтобы animations (animateCharacterIn,
       // moveOut и т.д.) использовали актуальную точку.
@@ -1297,9 +1362,9 @@ export default class EditorTool {
       }
       const skey =
         isPortrait && cfg.scale_portrait ? "scale_portrait" : "scale";
-      if (cfg[skey] && e.scaleX != null) {
-        cfg[skey].x = e.scaleX;
-        cfg[skey].y = e.scaleY;
+      if (cfg[skey] && entryScaleX != null) {
+        cfg[skey].x = entryScaleX;
+        cfg[skey].y = entryScaleY;
       }
     }
   }
