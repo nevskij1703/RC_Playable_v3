@@ -460,9 +460,21 @@ export default class PlayableController extends BaseObject {
     }
     if (typeof tooltip.show === "function") {
       try {
-        tooltip.show();
+        const p = tooltip.show();
+        if (p && typeof p.catch === "function") p.catch(() => {});
       } catch (e) {}
     }
+  }
+
+  // Tooltip.show()/hide() — async и могут реджектить промис (например,
+  // если их прерывает повторный вызов). Без .catch это всплывает как
+  // "Unknown promise rejection reason" в webpack-dev-server overlay.
+  _safeTooltip(tooltip, method) {
+    if (!tooltip || typeof tooltip[method] !== "function") return;
+    try {
+      const p = tooltip[method]();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    } catch (e) {}
   }
 
   // Генерируем заказ для buyer и заполняем его tooltip иконками блюд.
@@ -520,7 +532,7 @@ export default class PlayableController extends BaseObject {
           this.activeBuyers[buyer.slotIndex] === buyer &&
           !buyer.pendingOrder
         ) {
-          tooltip.show();
+          this._safeTooltip(tooltip, "show");
         }
         this.spawningSlots.delete(buyer.slotIndex);
       },
@@ -560,7 +572,7 @@ export default class PlayableController extends BaseObject {
         character.animations.hide.reset().start();
       }, TIMINGS.characterMoveOut * 0.4);
 
-      tooltip.hide();
+      this._safeTooltip(tooltip, "hide");
       // Монетки вылетают из бабла клиента сразу после его исчезновения.
       this.emitCoinsForSlot(slotIndex, buyer);
     }, 800);
@@ -1478,7 +1490,7 @@ export default class PlayableController extends BaseObject {
         character.setAnimation(CHARACTER_ANIMATIONS.happy, false);
         character.addAnimation(CHARACTER_ANIMATIONS.idle, true);
         setTimeout(() => {
-          buyer.tooltip.hide();
+          this._safeTooltip(buyer.tooltip, "hide");
           // Монетки вылетают сразу после исчезновения бабла последнего клиента.
           this.emitCoinsForSlot(buyer.slotIndex, buyer);
           if (!this._storeTriggered) this.triggerStore();
