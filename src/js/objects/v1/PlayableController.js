@@ -359,6 +359,9 @@ export default class PlayableController extends BaseObject {
       if (i === excludeSlot) continue;
       const b = this.activeBuyers[i];
       if (!b) continue;
+      // Pending-клиенты ещё не имеют заказа — считать их «решаемыми»
+      // нельзя, иначе ослабится anti-deadlock инвариант.
+      if (b.pendingOrder) continue;
       const ok = b.dishes.every((d) =>
         d.products.every((p) => {
           if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
@@ -387,18 +390,59 @@ export default class PlayableController extends BaseObject {
     if (!this.hasMoreBuyers()) return;
     if (this.activeBuyers[slotIndex]) return;
     if (this.spawningSlots.has(slotIndex)) return;
-    // Пока показывается overlay апгрейда — не спавним новых клиентов.
-    // hideUpgradeOverlay() пройдётся по пустым слотам и заполнит их.
-    if (this.upgradeOverlayActive) return;
 
     this.spawningSlots.add(slotIndex);
 
     const characterName = SLOT_CHARACTERS[slotIndex];
     const character = this.buyersContainer[characterName];
     const tooltip = ObjectLinks.get(SLOT_TOOLTIPS[slotIndex]);
-    // Lazy-генерация с anti-deadlock инвариантом (2+ решаемых клиента).
-    const dishes = this.pickOrderForSpawn(slotIndex);
 
+    const buyer = {
+      slotIndex,
+      characterName,
+      character,
+      tooltip,
+      dishes: [],
+      tutorialDishIndex: 0,
+      tutorialStepIndex: 0,
+      complete: false,
+      pendingOrder: false,
+    };
+
+    if (this.upgradeOverlayActive) {
+      // Во время выбора апгрейда персонаж заходит на фон, но заказ ещё
+      // не сгенерирован: его состав может зависеть от выбора игрока
+      // (новый разблокированный топпинг). После hideUpgradeOverlay
+      // мы вызовем _assignOrder() и покажем tooltip.
+      buyer.pendingOrder = true;
+      // Скрываем tooltip явно — он мог остаться видимым от предыдущего
+      // клиента, иначе игрок увидел бы старые иконки.
+      if (tooltip && typeof tooltip.hide === "function") tooltip.hide();
+    } else {
+      this._assignOrder(buyer);
+    }
+
+    this.activeBuyers[slotIndex] = buyer;
+    this.totalSpawned++;
+
+    this.animateCharacterIn(buyer, isInitial);
+
+    if (!buyer.pendingOrder) {
+      // Состав открытых заказов изменился — пересчитать кликабельность
+      // ингредиентов (новый клиент мог разблокировать какой-то топинг).
+      this.updateProductsInteractive();
+      this.updateTortillaInteractive();
+    }
+  }
+
+  // Генерируем заказ для buyer и заполняем его tooltip иконками блюд.
+  // Лимит решаемости (anti-deadlock) учитывается через pickOrderForSpawn.
+  _assignOrder(buyer) {
+    const dishes = this.pickOrderForSpawn(buyer.slotIndex);
+    buyer.dishes = dishes;
+
+    const tooltip = buyer.tooltip;
+    if (!tooltip) return;
     tooltip.resetForReuse();
     tooltip.updateIcons(0);
 
@@ -421,27 +465,6 @@ export default class PlayableController extends BaseObject {
         }
       });
     }
-
-    const buyer = {
-      slotIndex,
-      characterName,
-      character,
-      tooltip,
-      dishes,
-      tutorialDishIndex: 0,
-      tutorialStepIndex: 0,
-      complete: false,
-    };
-
-    this.activeBuyers[slotIndex] = buyer;
-    this.totalSpawned++;
-
-    this.animateCharacterIn(buyer, isInitial);
-
-    // Состав открытых заказов изменился — пересчитать кликабельность
-    // ингредиентов (новый клиент мог разблокировать какой-то топинг).
-    this.updateProductsInteractive();
-    this.updateTortillaInteractive();
   }
 
   animateCharacterIn(buyer, isInitial) {
@@ -461,7 +484,12 @@ export default class PlayableController extends BaseObject {
 
     setTimeout(
       () => {
-        if (this.activeBuyers[buyer.slotIndex] === buyer) {
+        // Pending-клиенту tooltip покажем после закрытия overlay'я
+        // (тогда же сгенерируется заказ).
+        if (
+          this.activeBuyers[buyer.slotIndex] === buyer &&
+          !buyer.pendingOrder
+        ) {
           tooltip.show();
         }
         this.spawningSlots.delete(buyer.slotIndex);
@@ -471,7 +499,10 @@ export default class PlayableController extends BaseObject {
 
     setTimeout(
       () => {
-        if (this.activeBuyers[buyer.slotIndex] === buyer) {
+        if (
+          this.activeBuyers[buyer.slotIndex] === buyer &&
+          !buyer.pendingOrder
+        ) {
           this.updateTutorial();
         }
       },
@@ -1306,6 +1337,21 @@ export default class PlayableController extends BaseObject {
       return;
     }
 
+    // Pending-клиенты (зашли на фон во время overlay'я) — теперь, когда
+    // апгрейды отыграны, генерируем им заказ и показываем tooltip.
+    // Делаем до спавна оставшихся пустых слотов — чтобы у уже пришедших
+    // персонажей быстрее появились бабли.
+    for (const buyer of this.activeBuyers) {
+      if (!buyer || !buyer.pendingOrder) continue;
+      this._assignOrder(buyer);
+      buyer.pendingOrder = false;
+      if (buyer.tooltip && typeof buyer.tooltip.show === "function") {
+        buyer.tooltip.show();
+      }
+    }
+    this.updateProductsInteractive();
+    this.updateTortillaInteractive();
+
     // Спавним клиентов в пустых слотах (спавны во время паузы подавлялись).
     for (let i = 0; i < SLOT_COUNT; i++) {
       if (!this.activeBuyers[i] && this.hasMoreBuyers()) {
@@ -1467,13 +1513,16 @@ export default class PlayableController extends BaseObject {
   }
 
   // Если гипотетически пометить candidateDish как complete — все ли заказы
-  // у всех активных клиентов окажутся обслужены?
+  // у всех активных клиентов окажутся обслужены? Pending-клиент (зашёл на
+  // фон, но заказ ещё не сгенерирован) считается «не обслуженным» — у него
+  // ещё будет заказ, рано в стор уходить.
   _wouldBeAllDone(candidateDish) {
     const active = this.getActiveBuyers();
     if (active.length === 0) return false;
-    return active.every((b) =>
-      b.dishes.every((d) => d.complete || d === candidateDish)
-    );
+    return active.every((b) => {
+      if (b.pendingOrder) return false;
+      return b.dishes.every((d) => d.complete || d === candidateDish);
+    });
   }
 
   // Перевод в стор вместо реальной выдачи финального заказа. Маркирует
