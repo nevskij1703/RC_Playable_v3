@@ -44,22 +44,23 @@ const DEFAULT_LAYOUT = {
   // 21:9 и шире — сверхширокий горизонтальный
   ultraWide: {
     italian_man: { x: -353, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
+    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
     tooltip1: { x: -310, y: -433, scaleX: 0.691, scaleY: 0.691 },
-    tooltip2: { x: -85, y: -430, scaleX: 0.692, scaleY: 0.692 },
+    tooltip2_phase1: { x: -109, y: -435, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 159, y: -432, scaleX: 0.691, scaleY: 0.691 },
   },
   // Классический горизонтальный десктоп (16:9, 16:10, 5:3, 3:2)
   desktop: {
     italian_man: { x: -353, y: 201, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
+    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 126, y: 114, scaleX: 1, scaleY: 1 },
     tooltip1: { x: -305, y: -409, scaleX: 0.658, scaleY: 0.658 },
-    tooltip2: { x: -90, y: -410, scaleX: 0.656, scaleY: 0.656 },
+    tooltip2_phase1: { x: -115, y: -433, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 158, y: -409, scaleX: 0.625, scaleY: 0.625 },
   },
-  // Почти квадратный экран (4:3 лэндскейп)
+  // Почти квадратный экран (4:3 лэндскейп) — пользователь не настраивал,
+  // оставляем прежние значения как fallback.
   square: {
     italian_man: { x: -363, y: 207, scaleX: 1, scaleY: 1 },
     pretty_woman: { x: -155, y: 119, scaleX: 1, scaleY: 1 },
@@ -71,29 +72,33 @@ const DEFAULT_LAYOUT = {
   // 3:4 — вертикальный планшет
   tablet: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -125, y: 118, scaleX: 1, scaleY: 1 },
+    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 127, y: 112, scaleX: 1, scaleY: 1 },
     tooltip1: { x: -353, y: -544, scaleX: 0.93, scaleY: 0.93 },
-    tooltip2: { x: -119, y: -540, scaleX: 0.93, scaleY: 0.93 },
+    tooltip2_phase1: { x: -111, y: -461, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 131, y: -538, scaleX: 0.932, scaleY: 0.932 },
   },
   // 9:16 — вертикальный телефон
   phone: {
     italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -140, y: 120, scaleX: 1, scaleY: 1 },
+    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
     old_grambler: { x: 125, y: 111, scaleX: 1, scaleY: 1 },
     tooltip1: { x: -345, y: -517, scaleX: 0.842, scaleY: 0.842 },
-    tooltip2: { x: -121, y: -516, scaleX: 0.837, scaleY: 0.837 },
+    tooltip2_phase1: { x: -110, y: -458, scaleX: 0.85, scaleY: 0.85 },
     tooltip3: { x: 121, y: -517, scaleX: 0.844, scaleY: 0.844 },
   },
   // 9:21 — сверх-вытянутый вертикальный
   ultraTall: {
-    italian_man: { x: -360, y: 205, scaleX: 1, scaleY: 1 },
-    pretty_woman: { x: -130, y: 120, scaleX: 1, scaleY: 1 },
-    old_grambler: { x: 134, y: 114, scaleX: 1, scaleY: 1 },
-    tooltip1: { x: -119, y: -542, scaleX: 0.935, scaleY: 0.935 },
-    tooltip2: { x: -356, y: -542, scaleX: 0.93, scaleY: 0.93 },
-    tooltip3: { x: 129, y: -542, scaleX: 0.937, scaleY: 0.937 },
+    italian_man: { x: -354, y: 203, scaleX: 1, scaleY: 1 },
+    pretty_woman: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    old_grambler: { x: 132, y: 108, scaleX: 1, scaleY: 1 },
+    tooltip1: { x: -348, y: -531, scaleX: 1, scaleY: 1 },
+    tooltip2: { x: -111, y: -460, scaleX: 0.85, scaleY: 0.85 },
+    tooltip3: { x: 121, y: -519, scaleX: 1, scaleY: 1 },
+    italian_man_phase2: { x: -249, y: 194, scaleX: 1, scaleY: 1 },
+    old_grambler_phase2: { x: 53, y: 101, scaleX: 1, scaleY: 1 },
+    pretty_woman_phase1: { x: -134, y: 122, scaleX: 1, scaleY: 1 },
+    tooltip2_phase1: { x: -113, y: -460, scaleX: 0.85, scaleY: 0.85 },
   },
 };
 
