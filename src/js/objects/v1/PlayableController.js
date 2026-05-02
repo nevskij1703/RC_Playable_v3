@@ -660,15 +660,17 @@ export default class PlayableController extends BaseObject {
   }
 
   // Возвращает тарелку, на которую можно положить linkID
-  // (meat/tomato/cucumbers/fry); или null если все тарелки уже содержат
-  // этот ингредиент. Greedy: сначала достраиваем самую полную тарелку.
+  // (meat/tomato/cucumbers/fry); или null если ни одна тарелка не
+  // подходит. Greedy: сначала достраиваем самую полную тарелку.
   //
-  // Matching-гейт раньше блокировал «лишние» ингредиенты (supply > demand),
-  // но в связке с разрешением собирать лепёшку+мясо впрок это создавало
-  // тупик: собрав 3 заготовки при 2 не-cola заказах, игрок не мог
-  // достроить картошку — гейт говорил «нет матчинга». Снимаем гейт для
-  // всех ингредиентов; лишняя готовая шаверма просто подождёт следующего
-  // клиента (или останется неотданной — игроку виднее).
+  // Мясо — база любой шавермы, кладём свободно (matching-инвариант
+  // неприменим: лепёшка+мясо валидны для каждого не-cola заказа).
+  //
+  // Для топпингов — локальная проверка: после добавления состав тарелки
+  // должен оставаться ⊆ products какого-то открытого заказа. Это не даёт
+  // собрать «химеру» (помидор+огурец+картошка), которой нет ни в одном
+  // заказе. Глобальный matching-гейт supply↔demand сознательно НЕ
+  // используем: он создавал тупики при «лишних» заготовках лепёшка+мясо.
   _pickPlateForIngredient(linkID) {
     const candidates = this.currentDishes.filter(
       (d) => d.visible && (!d[linkID] || !d[linkID].visible)
@@ -680,7 +682,19 @@ export default class PlayableController extends BaseObject {
         this.visibleIngredients(b).length - this.visibleIngredients(a).length
     );
 
-    return candidates[0];
+    if (linkID === OBJECTS.meat) return candidates[0];
+
+    const demand = this._currentDemand();
+    for (const c of candidates) {
+      const after = this.visibleIngredients(c).concat(
+        this.visibleIngredients(c).includes(linkID) ? [] : [linkID]
+      );
+      const fitsAny = demand.some((products) =>
+        after.every((p) => products.includes(p))
+      );
+      if (fitsAny) return c;
+    }
+    return null;
   }
 
   // Можно ли тапнуть ингредиент (meat / tomato / cucumbers / fry).
