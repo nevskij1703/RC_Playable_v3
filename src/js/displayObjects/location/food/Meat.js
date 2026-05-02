@@ -28,14 +28,6 @@ export default class Meat extends Food {
   }
 
   addMeat() {
-    let meat;
-
-    if (!this.meat1.visible) {
-      meat = this.meat1;
-    } else if (!this.meat2.visible) {
-      meat = this.meat2;
-    }
-
     if (!this.scenarios.emitSmoke)
       this.scenarios.emitSmoke = new Scenario(this, {
         rewards: [
@@ -48,59 +40,50 @@ export default class Meat extends Food {
         repeat: 20,
       });
 
-    if (meat) {
-      meat.show();
-      meat.alpha = 1;
-      this.scenarios.emitSmoke.reset().start();
-    } else {
-      if (!this.meat3.visible) {
-        meat = this.meat3;
-      } else if (!this.meat4.visible) {
-        meat = this.meat4;
-      }
-
-      if (meat) {
-        meat.visible = true;
-        meat.alpha = 1;
-        meat.meat0.visible = false;
-        meat.meat1.visible = false;
-        meat.meat2.visible = false;
-        meat.meat3.visible = false;
-        meat.meat4.visible = false;
-        meat.meat5.visible = false;
-
-        Rewards.startScenario([
-          Rewards.startScenario(
-            Rewards.forEach(
-              () => meat.children,
-              Rewards.onTarget(
-                (obj) => obj.baseObject,
-                Rewards.startScenario([
-                  Rewards.startAnimationInstant({
-                    creator: Animations.moveFromDxDy,
-                    dy: -160,
-                    dx: -64,
-                    duration: 250,
-                    easing: Easing.Quadratic.Out,
-                    autoStart: true,
-                  }),
-                  Rewards.show(),
-                  Rewards.wait(25),
-                ])
-              )
-            )
-          ),
-          Rewards.if(
-            () => meat == this.meat4,
-            Rewards.startScenario([
-              Rewards.wait(250 + 25 * meat.children.length - 1),
-              () => (meat.visible = false),
-            ])
-          ),
-          () => this.scenarios.emitSmoke.reset().start(),
-        ])();
-      }
+    if (!this.meat1.visible) {
+      this.meat1.show();
+      this.meat1.alpha = 1;
     }
+
+    if (!this.meat2.visible) {
+      this.meat2.show();
+      this.meat2.alpha = 1;
+    }
+
+    if (!this.meat3.visible) {
+      const meat = this.meat3;
+      meat.visible = true;
+      meat.alpha = 1;
+      meat.meat0.visible = false;
+      meat.meat1.visible = false;
+      meat.meat2.visible = false;
+      meat.meat3.visible = false;
+      meat.meat4.visible = false;
+      meat.meat5.visible = false;
+
+      Rewards.startScenario(
+        Rewards.forEach(
+          () => meat.children,
+          Rewards.onTarget(
+            (obj) => obj.baseObject,
+            Rewards.startScenario([
+              Rewards.startAnimationInstant({
+                creator: Animations.moveFromDxDy,
+                dy: -160,
+                dx: -64,
+                duration: 250,
+                easing: Easing.Quadratic.Out,
+                autoStart: true,
+              }),
+              Rewards.show(),
+              Rewards.wait(25),
+            ])
+          )
+        )
+      )();
+    }
+
+    this.scenarios.emitSmoke.reset().start();
   }
 
   getDefaultConfig(config) {
