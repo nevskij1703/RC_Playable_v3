@@ -1198,36 +1198,22 @@ export default class PlayableController extends BaseObject {
 
   // ---------- Roguelike upgrades ----------
 
-  // Setup стартовых визуалов: заблокированные тарелки и топпинги
-  // полупрозрачны и помечены замком. Топпинги ещё и не реагируют на тап.
-  // Бейджи и dim-плашки рисуются как siblings топпингов в table-view —
-  // alpha-каскад от родителя не гасит их.
+  // Setup стартовых визуалов: заблокированные тарелки скрываем целиком
+  // (они появятся только после апгрейда). Заблокированные топпинги
+  // полупрозрачны + бейдж с замком, т.к. находятся не на спрайте подноса
+  // и не имеют отдельного «пустого» состояния.
   _setupLockedVisuals() {
     this._lockBadges = []; // храним для удаления при апгрейде
 
     const tableObj = ObjectLinks.get(OBJECTS.table);
     if (!tableObj || !tableObj.view) return;
 
-    // Тарелки 2 и 3: белые тарелки на столе нарисованы на спрайте table.png
-    // (статичная часть). Покрываем их dim-кругом + замком в Layer table.
-    const dishPositions = {
-      [OBJECTS.dish2]: { x: 68, y: -105 },
-      [OBJECTS.dish3]: { x: 198, y: -105 },
-    };
+    // Заблокированные тарелки полностью скрываем — поднос остаётся
+    // пустым, как будто этого слота ещё нет. После applyPlateUpgrade
+    // тарелка восстанавливается.
     for (const linkID of this.lockedDishes) {
-      const pos = dishPositions[linkID];
-      if (!pos) continue;
-      const dim = new PIXI.Graphics();
-      dim.beginFill(0x000000, 0.4);
-      dim.drawCircle(pos.x, pos.y, 50);
-      dim.endFill();
-      tableObj.view.addChild(dim);
-
-      const badge = createLockBadge(34);
-      badge.position.set(pos.x, pos.y);
-      tableObj.view.addChild(badge);
-
-      this._lockBadges.push({ kind: "plate", linkID, badge, dim });
+      const dish = ObjectLinks.get(linkID);
+      if (dish && dish.view) dish.view.visible = false;
     }
 
     // Топпинги: tomato/cucumbers/fry — Food-контейнеры. Делаем сам контейнер
@@ -1383,15 +1369,10 @@ export default class PlayableController extends BaseObject {
     this.emptyDishes.push(linkID);
     this.unlockedPlateCount++;
 
-    // Убрать замок и dim для этой тарелки.
-    this._lockBadges = this._lockBadges.filter((entry) => {
-      if (entry.kind === "plate" && entry.linkID === linkID) {
-        if (entry.badge && entry.badge.parent) entry.badge.parent.removeChild(entry.badge);
-        if (entry.dim && entry.dim.parent) entry.dim.parent.removeChild(entry.dim);
-        return false;
-      }
-      return true;
-    });
+    // Возвращаем тарелку на стол — _setupLockedVisuals скрыл её через
+    // dish.view.visible=false.
+    const dish = ObjectLinks.get(linkID);
+    if (dish && dish.view) dish.view.visible = true;
 
     // canTapTortilla теперь true — обновим интерактив тортильи.
     this.updateTortillaInteractive();
