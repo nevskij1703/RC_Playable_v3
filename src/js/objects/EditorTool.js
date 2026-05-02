@@ -1,7 +1,25 @@
 import { APPLICATION_EVENTS, ObjectLinks, PIXI } from "PlayableAdsEngine";
 import { OBJECTS } from "../const";
+import { RCP_SETTINGS_KEY, RCP_SETTINGS_DEFAULTS } from "./v1/PlayableController";
 
 const STORAGE_KEY = "rcp_editor_layout_v1";
+const PANEL_POS_KEY = "rcp_editor_panel_pos_v1";
+
+// Описание полей в разделе «Численные параметры» — порядок и подписи.
+const PARAM_FIELDS = [
+  { key: "totalBuyers", label: "Всего клиентов", min: 1, max: 999, step: 1 },
+  { key: "slotCount", label: "Клиентов за прилавком", min: 1, max: 3, step: 1 },
+  { key: "maxDishesPerOrder", label: "Макс. блюд в заказе", min: 1, max: 3, step: 1 },
+  { key: "upgradeInterval", label: "Клиентов между апгрейдами", min: 1, max: 99, step: 1 },
+];
+const PRICE_FIELDS = [
+  { key: "tortilla", label: "Лепёшка" },
+  { key: "meat", label: "Мясо" },
+  { key: "tomato", label: "Помидор" },
+  { key: "cucumbers", label: "Огурец" },
+  { key: "fry", label: "Картошка" },
+  { key: "cola", label: "Кола" },
+];
 
 // Упрощённая bucket-схема: 6 экран-вариантов вместо 16 движковых.
 // Определяются по getLandscapeRatio (= max/min, всегда ≥ 1) + isPortrait.
@@ -276,32 +294,304 @@ export default class EditorTool {
     wrap.id = "rcp-editor-ui";
     wrap.style.cssText =
       "position:fixed;top:8px;left:8px;z-index:99999;font:bold 12px Arial,sans-serif;user-select:none;";
+
+    const btn = (id, bg, label) =>
+      `<button id="${id}" style="display:block;width:100%;padding:7px 10px;margin-bottom:6px;background:${bg};color:#fff;border:none;border-radius:5px;cursor:pointer;">${label}</button>`;
+
+    // Header панели: drag-handle + кнопка закрытия.
+    const header =
+      '<div id="ed-header" style="display:flex;align-items:center;justify-content:space-between;margin:-4px -4px 6px;padding:4px 6px;background:#f0f0f0;border-radius:5px;cursor:move;">' +
+      '<span style="color:#555;font-size:11px;">⚙ Читы — перетащить</span>' +
+      '<button id="ed-close" style="border:none;background:transparent;color:#666;font:bold 18px Arial,sans-serif;cursor:pointer;padding:0 4px;line-height:1;">×</button>' +
+      "</div>";
+
+    // Раздел «Перемещение» — встраивается между кнопкой и следующими кнопками.
+    const sectionObjects =
+      '<div id="ed-section-objects" style="display:none;margin:0 0 6px;padding:8px;background:#fafafa;border-radius:5px;">' +
+      '<div id="ed-buckets" style="margin-bottom:6px;font-size:10px;"></div>' +
+      '<div id="ed-params" style="margin-bottom:6px;max-height:35vh;overflow:auto;"></div>' +
+      btn("ed-save", "#4FA8E0", "Сохранить JSON") +
+      btn("ed-reset", "#999", "Сбросить") +
+      '<div id="ed-status" style="margin-top:6px;font-size:11px;color:#444;line-height:1.35;"></div>' +
+      '<textarea id="ed-dump" readonly style="display:none;width:100%;height:120px;margin-top:6px;font:11px monospace;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;resize:vertical;"></textarea>' +
+      "</div>";
+
+    // Раздел «Параметры» — баланс игры.
+    const sectionNum =
+      '<div id="ed-section-num" style="display:none;margin:0 0 6px;padding:8px;background:#fafafa;border-radius:5px;">' +
+      '<div id="ed-num-fields" style="margin-bottom:6px;"></div>' +
+      btn("ed-num-save", "#4FA8E0", "Сохранить JSON") +
+      btn("ed-num-reset", "#999", "Сбросить параметры") +
+      '<div id="ed-num-status" style="margin-top:6px;font-size:11px;color:#444;line-height:1.35;"></div>' +
+      '<textarea id="ed-num-dump" readonly style="display:none;width:100%;height:120px;margin-top:6px;font:11px monospace;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;resize:vertical;"></textarea>' +
+      "</div>";
+
     wrap.innerHTML =
       '<button id="ed-toggle" style="padding:6px 10px;background:#7561C8;color:#fff;border:none;border-radius:6px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.3);">⚙ Читы</button>' +
-      '<div id="ed-panel" style="display:none;margin-top:6px;background:#fff;padding:10px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.25);min-width:220px;">' +
-      '<button id="ed-mode" style="display:block;width:100%;padding:7px 10px;margin-bottom:6px;background:#E07A2A;color:#fff;border:none;border-radius:5px;cursor:pointer;">Перемещение объектов</button>' +
-      '<button id="ed-save" style="display:block;width:100%;padding:7px 10px;margin-bottom:6px;background:#4FA8E0;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сохранить положения</button>' +
-      '<button id="ed-reset" style="display:block;width:100%;padding:7px 10px;background:#999;color:#fff;border:none;border-radius:5px;cursor:pointer;">Сбросить → Reload</button>' +
-      '<div id="ed-status" style="margin-top:8px;font-size:11px;color:#444;line-height:1.35;"></div>' +
-      '<div id="ed-buckets" style="display:none;margin-top:10px;border-top:1px solid #ddd;padding-top:8px;font-size:10px;"></div>' +
-      '<div id="ed-params" style="display:none;margin-top:10px;border-top:1px solid #ddd;padding-top:8px;max-height:50vh;overflow:auto;"></div>' +
-      '<textarea id="ed-dump" readonly style="display:none;width:100%;height:140px;margin-top:8px;font:11px monospace;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;resize:vertical;"></textarea>' +
-      '<button id="ed-copy" style="display:none;width:100%;padding:6px 10px;margin-top:6px;background:#7561C8;color:#fff;border:none;border-radius:5px;cursor:pointer;">Скопировать в буфер</button>' +
+      '<div id="ed-panel" style="display:none;margin-top:6px;background:#fff;padding:10px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.25);min-width:240px;">' +
+      header +
+      btn("ed-open-objects", "#E07A2A", "Перемещение") +
+      sectionObjects +
+      btn("ed-open-num", "#3DAA68", "Параметры") +
+      sectionNum +
+      btn("ed-restart", "#D45D43", "Перезагрузка") +
       "</div>";
+
     document.body.appendChild(wrap);
 
     document.getElementById("ed-toggle").onclick = () => {
       const p = document.getElementById("ed-panel");
       p.style.display = p.style.display === "none" ? "block" : "none";
     };
-    document.getElementById("ed-mode").onclick = () => this.toggle();
-    document.getElementById("ed-save").onclick = () => this.save();
+    document.getElementById("ed-close").onclick = () => {
+      document.getElementById("ed-panel").style.display = "none";
+      // Закрытие панели сворачивает раздел Перемещение → drag mode off.
+      const obj = document.getElementById("ed-section-objects");
+      if (obj && obj.style.display === "block") this._toggleSection("objects");
+    };
+    document.getElementById("ed-open-objects").onclick = () =>
+      this._toggleSection("objects");
+    document.getElementById("ed-open-num").onclick = () =>
+      this._toggleSection("num");
+    document.getElementById("ed-restart").onclick = () => location.reload();
+
+    document.getElementById("ed-save").onclick = () => {
+      this.save();
+      this._copyDump();
+    };
     document.getElementById("ed-reset").onclick = () => this.resetAndReload();
-    document.getElementById("ed-copy").onclick = () => this._copyDump();
+
+    document.getElementById("ed-num-save").onclick = () => {
+      this._saveNumParams();
+      this._copyNumDump();
+    };
+    document.getElementById("ed-num-reset").onclick = () =>
+      this._resetNumParamsAndReload();
 
     this.statusEl = document.getElementById("ed-status");
     this.dumpEl = document.getElementById("ed-dump");
-    this.copyBtn = document.getElementById("ed-copy");
+
+    this.numStatusEl = document.getElementById("ed-num-status");
+    this.numDumpEl = document.getElementById("ed-num-dump");
+
+    this._setupPanelDrag();
+    this._restorePanelPos();
+  }
+
+  // Показать одну секцию, скрыть другую. Повторный клик — закрыть.
+  // Раздел «Перемещение» автоматически включает/выключает drag-режим.
+  _toggleSection(name) {
+    const ids = { objects: "ed-section-objects", num: "ed-section-num" };
+    for (const k of Object.keys(ids)) {
+      const el = document.getElementById(ids[k]);
+      if (!el) continue;
+      if (k === name) {
+        const wasOpen = el.style.display !== "none";
+        el.style.display = wasOpen ? "none" : "block";
+        if (k === "num" && !wasOpen) this._buildNumFields();
+        if (k === "objects") {
+          if (!wasOpen && !this.active) this.toggle();
+          else if (wasOpen && this.active) this.toggle();
+        }
+      } else {
+        if (el.style.display === "block") {
+          el.style.display = "none";
+        }
+      }
+    }
+  }
+
+  // ---------- Drag панели ----------
+
+  _setupPanelDrag() {
+    const handle = document.getElementById("ed-header");
+    const panel = document.getElementById("ed-panel");
+    if (!handle || !panel) return;
+    let dragging = false;
+    let startX = 0,
+      startY = 0,
+      origX = 0,
+      origY = 0;
+    handle.addEventListener("mousedown", (e) => {
+      // Игнорируем клики по кнопке закрытия.
+      if (e.target && e.target.id === "ed-close") return;
+      dragging = true;
+      const wrap = document.getElementById("rcp-editor-ui");
+      const rect = wrap.getBoundingClientRect();
+      origX = rect.left;
+      origY = rect.top;
+      startX = e.clientX;
+      startY = e.clientY;
+      e.preventDefault();
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const wrap = document.getElementById("rcp-editor-ui");
+      if (!wrap) return;
+      const x = origX + (e.clientX - startX);
+      const y = origY + (e.clientY - startY);
+      wrap.style.left = Math.max(0, x) + "px";
+      wrap.style.top = Math.max(0, y) + "px";
+    });
+    document.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false;
+      const wrap = document.getElementById("rcp-editor-ui");
+      if (!wrap) return;
+      try {
+        localStorage.setItem(
+          PANEL_POS_KEY,
+          JSON.stringify({
+            left: wrap.style.left,
+            top: wrap.style.top,
+          })
+        );
+      } catch (e) {}
+    });
+  }
+
+  _restorePanelPos() {
+    try {
+      const raw = localStorage.getItem(PANEL_POS_KEY);
+      if (!raw) return;
+      const pos = JSON.parse(raw);
+      const wrap = document.getElementById("rcp-editor-ui");
+      if (!wrap || !pos) return;
+      if (pos.left) wrap.style.left = pos.left;
+      if (pos.top) wrap.style.top = pos.top;
+    } catch (e) {}
+  }
+
+  // ---------- Численные параметры ----------
+
+  _readStoredNumParams() {
+    let stored = {};
+    try {
+      const raw = localStorage.getItem(RCP_SETTINGS_KEY);
+      if (raw) stored = JSON.parse(raw) || {};
+    } catch (e) {}
+    return stored;
+  }
+
+  _currentNumValues() {
+    const live = (typeof window !== "undefined" && window.__rcpSettings) || {};
+    const d = RCP_SETTINGS_DEFAULTS;
+    const prices = Object.assign({}, d.prices, live.prices || {});
+    return {
+      totalBuyers: live.totalBuyers != null ? live.totalBuyers : d.totalBuyers,
+      slotCount: live.slotCount != null ? live.slotCount : d.slotCount,
+      maxDishesPerOrder:
+        live.maxDishesPerOrder != null
+          ? live.maxDishesPerOrder
+          : d.maxDishesPerOrder,
+      upgradeInterval:
+        live.upgradeInterval != null
+          ? live.upgradeInterval
+          : d.upgradeInterval,
+      prices,
+    };
+  }
+
+  _buildNumFields() {
+    const wrap = document.getElementById("ed-num-fields");
+    if (!wrap) return;
+    const cur = this._currentNumValues();
+    const inputCss =
+      "width:70px;padding:3px 5px;font:11px monospace;border:1px solid #ccc;border-radius:3px;";
+    const rowCss =
+      "display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;font-size:11px;";
+
+    let html = '<div style="font-size:10px;color:#666;margin-bottom:4px;">Балансовые параметры (применятся после перезапуска):</div>';
+    for (const f of PARAM_FIELDS) {
+      html +=
+        `<div style="${rowCss}"><span>${f.label}</span>` +
+        `<input data-num-key="${f.key}" type="number" min="${f.min}" max="${f.max}" step="${f.step}" value="${cur[f.key]}" style="${inputCss}"></div>`;
+    }
+    html += '<div style="font-size:10px;color:#666;margin:8px 0 4px;">Цены товаров (монет):</div>';
+    for (const f of PRICE_FIELDS) {
+      html +=
+        `<div style="${rowCss}"><span>${f.label}</span>` +
+        `<input data-price-key="${f.key}" type="number" min="0" max="999" step="1" value="${cur.prices[f.key]}" style="${inputCss}"></div>`;
+    }
+    wrap.innerHTML = html;
+  }
+
+  _collectNumValuesFromInputs() {
+    const wrap = document.getElementById("ed-num-fields");
+    if (!wrap) return null;
+    const stored = this._readStoredNumParams();
+    const out = {
+      totalBuyers: stored.totalBuyers,
+      slotCount: stored.slotCount,
+      maxDishesPerOrder: stored.maxDishesPerOrder,
+      prices: Object.assign({}, stored.prices || {}),
+    };
+    wrap.querySelectorAll("input[data-num-key]").forEach((inp) => {
+      const k = inp.dataset.numKey;
+      const v = parseInt(inp.value, 10);
+      if (Number.isFinite(v)) out[k] = v;
+    });
+    wrap.querySelectorAll("input[data-price-key]").forEach((inp) => {
+      const k = inp.dataset.priceKey;
+      const v = parseInt(inp.value, 10);
+      if (Number.isFinite(v)) out.prices[k] = v;
+    });
+    return out;
+  }
+
+  _saveNumParams() {
+    const data = this._collectNumValuesFromInputs();
+    if (!data) return;
+    localStorage.setItem(RCP_SETTINGS_KEY, JSON.stringify(data));
+    const pretty = JSON.stringify(data, null, 2);
+    if (this.numDumpEl) {
+      this.numDumpEl.value = pretty;
+      this.numDumpEl.style.display = "block";
+    }
+    if (this.numStatusEl) {
+      this.numStatusEl.innerHTML =
+        "Сохранено в localStorage. Применится после <b>Перезапуска игры</b>.";
+    }
+  }
+
+  _resetNumParamsAndReload() {
+    localStorage.removeItem(RCP_SETTINGS_KEY);
+    location.reload();
+  }
+
+  _copyNumDump() {
+    const text = this.numDumpEl ? this.numDumpEl.value : "";
+    if (!text) return;
+    let ok = false;
+    try {
+      this.numDumpEl.focus();
+      this.numDumpEl.select();
+      ok = document.execCommand && document.execCommand("copy");
+    } catch (e) {}
+    if (ok) {
+      this.numStatusEl.innerHTML = "Скопировано в буфер обмена ✓";
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => (this.numStatusEl.innerHTML = "Скопировано в буфер обмена ✓"),
+        () => {
+          try {
+            this.numDumpEl.focus();
+            this.numDumpEl.select();
+          } catch (e) {}
+          this.numStatusEl.innerHTML =
+            "Авто-копирование заблокировано. Выдели текст и нажми <b>Ctrl+C</b>.";
+        }
+      );
+      return;
+    }
+    try {
+      this.numDumpEl.focus();
+      this.numDumpEl.select();
+    } catch (e) {}
+    this.numStatusEl.innerHTML =
+      "Авто-копирование не сработало. Выдели текст и нажми <b>Ctrl+C</b>.";
   }
 
   // Многошаговый fallback копирования: execCommand (надёжный в iframe/file)
@@ -384,16 +674,15 @@ export default class EditorTool {
     if (this.active) {
       this.collectTargets();
       this._enableDrag();
-      this.statusEl.innerHTML =
-        "Режим: <b>ВКЛ</b>. Тяни мышью; колесо — масштаб.<br>" +
-        `Ориентация: <b>${this._orientation()}</b>`;
+      if (this.statusEl) {
+        this.statusEl.innerHTML =
+          "Режим: <b>ВКЛ</b>. Тяни мышью; колесо — масштаб.<br>" +
+          `Ориентация: <b>${this._orientation()}</b>`;
+      }
     } else {
       this._disableDrag();
-      this.statusEl.textContent = "Режим выключен.";
+      if (this.statusEl) this.statusEl.textContent = "Режим выключен.";
     }
-    const btn = document.getElementById("ed-mode");
-    btn.style.background = this.active ? "#888" : "#E07A2A";
-    btn.textContent = this.active ? "Стоп" : "Перемещение объектов";
   }
 
   _enableDrag() {
@@ -564,10 +853,12 @@ export default class EditorTool {
       document.removeEventListener("wheel", this._wheelFn);
       this._wheelFn = null;
     }
+    // ed-params и ed-buckets живут внутри section-objects — секцию
+    // схлопывает _toggleSection. Тут только чистим содержимое.
     const params = document.getElementById("ed-params");
-    if (params) params.style.display = "none";
+    if (params) params.innerHTML = "";
     const buckets = document.getElementById("ed-buckets");
-    if (buckets) buckets.style.display = "none";
+    if (buckets) buckets.innerHTML = "";
     this.dragging = null;
   }
 

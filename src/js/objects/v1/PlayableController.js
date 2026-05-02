@@ -27,9 +27,61 @@ import EditorTool from "../EditorTool";
 import createLockBadge from "../../displayObjects/ui/LockBadge";
 
 const TUTORIAL_DELAY_FOR_NEW_PRODUCT = 2000;
-const SLOT_COUNT = 3;
-export const TOTAL_BUYERS = 20;
 const SPAWN_DELAY_MS = 600;
+
+// ---------- Runtime-настройки (правятся через cheats UI) ----------
+// Хранятся в localStorage; все константы баланса (число клиентов, размер
+// заказа, цены) читаются отсюда, чтобы можно было крутить без правки кода.
+export const RCP_SETTINGS_KEY = "rcp_runtime_settings_v1";
+export const RCP_SETTINGS_DEFAULTS = {
+  totalBuyers: 20,
+  slotCount: 3,
+  maxDishesPerOrder: 3,
+  upgradeInterval: 3,
+  prices: {
+    tortilla: 3,
+    meat: 5,
+    tomato: 2,
+    fry: 3,
+    cucumbers: 4,
+    cola: 5,
+  },
+};
+
+function _clampInt(v, min, max, fallback) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+export function loadRcpSettings() {
+  let stored = {};
+  try {
+    const raw = localStorage.getItem(RCP_SETTINGS_KEY);
+    if (raw) stored = JSON.parse(raw) || {};
+  } catch (e) {}
+  const d = RCP_SETTINGS_DEFAULTS;
+  const prices = { ...d.prices };
+  if (stored.prices && typeof stored.prices === "object") {
+    for (const k of Object.keys(d.prices)) {
+      const v = parseInt(stored.prices[k], 10);
+      if (Number.isFinite(v) && v >= 0) prices[k] = v;
+    }
+  }
+  return {
+    totalBuyers: _clampInt(stored.totalBuyers, 1, 999, d.totalBuyers),
+    slotCount: _clampInt(stored.slotCount, 1, 3, d.slotCount),
+    maxDishesPerOrder: _clampInt(stored.maxDishesPerOrder, 1, 3, d.maxDishesPerOrder),
+    upgradeInterval: _clampInt(stored.upgradeInterval, 1, 99, d.upgradeInterval),
+    prices,
+  };
+}
+
+const RCP_SETTINGS = loadRcpSettings();
+if (typeof window !== "undefined") window.__rcpSettings = RCP_SETTINGS;
+
+const SLOT_COUNT = RCP_SETTINGS.slotCount;
+export const TOTAL_BUYERS = RCP_SETTINGS.totalBuyers;
 
 const SLOT_CHARACTERS = ["italian_man", "pretty_woman", "old_grambler"];
 const SLOT_TOOLTIPS = [OBJECTS.tooltip1, OBJECTS.tooltip2, OBJECTS.tooltip3];
@@ -39,7 +91,7 @@ const SLOT_TOOLTIPS = [OBJECTS.tooltip1, OBJECTS.tooltip2, OBJECTS.tooltip3];
 // обслуженных клиента (раунды на 3/6/9/12/15/18) получает выбор из 2-х
 // апгрейдов. Категории: plate (1→3 max), topping (3 шт. — tomato/cucumbers/fry),
 // income (per-ingredient +2 за тир, бесконечно).
-const UPGRADE_INTERVAL = 3; // показ карточек после каждых N обслуженных
+const UPGRADE_INTERVAL = RCP_SETTINGS.upgradeInterval; // показ карточек после каждых N обслуженных
 const MAX_PLATES = 3;
 const TOPPING_KEYS = ["tomato", "cucumbers", "fry"]; // PRODUCTS_TYPES topping ingredients
 const INCOME_KEYS = ["meat", "tomato", "cucumbers", "fry", "cola"];
@@ -71,14 +123,8 @@ const PRODUCT_LABELS = {
 };
 
 // Цены ингредиентов: лепёшка автоматически добавляется к каждому шаверма-блюду.
-const PRICES = {
-  tortilla: 3,
-  meat: 5,
-  tomato: 2,
-  fry: 3,
-  cucumbers: 4,
-  cola: 5,
-};
+// Значения берутся из runtime-настроек (правятся через cheats UI).
+const PRICES = RCP_SETTINGS.prices;
 
 function dishPrice(dish, boosts) {
   const b = boosts || {};
@@ -197,10 +243,11 @@ export default class PlayableController extends BaseObject {
     this.buyersContainer = ObjectLinks.get(OBJECTS.buyers);
     this.cola = ObjectLinks.get(OBJECTS.cola);
 
-    this.activeBuyers = [null, null, null];
+    this.activeBuyers = Array(SLOT_COUNT).fill(null);
     this.totalServed = 0;
     this.totalSpawned = 0;
     this.spawningSlots = new Set();
+    this._storeTriggered = false;
 
     // Заказы генерируются lazy в spawnBuyerInSlot — состав DISH_TEMPLATES
     // зависит от unlockedToppings, который меняется во время раунда.
@@ -271,7 +318,7 @@ export default class PlayableController extends BaseObject {
       : DISH_TEMPLATES;
     const safePool = pool.length ? pool : DISH_TEMPLATES;
 
-    const dishCount = 1 + Math.floor(Math.random() * 3);
+    const dishCount = 1 + Math.floor(Math.random() * RCP_SETTINGS.maxDishesPerOrder);
     const dishes = [];
     for (let i = 0; i < dishCount; i++) {
       const t = safePool[Math.floor(Math.random() * safePool.length)];
@@ -566,24 +613,31 @@ export default class PlayableController extends BaseObject {
     );
   }
 
-  // Лепёшку (новую пустую тарелку) можно положить, только если matching
-  // ещё допустим после добавления.
+  // Лепёшку (новую пустую тарелку) можно положить, пока есть свободный
+  // слот тарелки. База шавермы (лепёшка + мясо) общая для всех заказов —
+  // её разрешено собирать впрок, независимо от текущего спроса.
   canTapTortilla() {
-    if (this.emptyDishes.length === 0) return false;
-    const supply = this._currentSupply();
-    supply.push([]); // гипотетическая пустая тарелка
-    return this._canMatch(supply, this._currentDemand());
+    return this.emptyDishes.length > 0;
   }
 
   // Возвращает тарелку, на которую можно положить linkID
   // (meat/tomato/cucumbers/fry) с сохранением matching-инварианта; или null.
   // Из нескольких валидных предпочитает наиболее «достроенную» (greedy:
   // сначала закрыть начатую — короче TTR заказа).
+  // Мясо — база любой шавермы, для него matching-гейт пропускаем: разрешаем
+  // класть на любую тарелку без мяса, даже если такого заказа сейчас нет.
   _pickPlateForIngredient(linkID) {
     const candidates = this.currentDishes.filter(
       (d) => d.visible && (!d[linkID] || !d[linkID].visible)
     );
     if (!candidates.length) return null;
+
+    candidates.sort(
+      (a, b) =>
+        this.visibleIngredients(b).length - this.visibleIngredients(a).length
+    );
+
+    if (linkID === OBJECTS.meat) return candidates[0];
 
     const baseSupply = this.currentDishes.map((d) => ({
       dish: d,
@@ -591,10 +645,6 @@ export default class PlayableController extends BaseObject {
     }));
     const demand = this._currentDemand();
 
-    candidates.sort(
-      (a, b) =>
-        this.visibleIngredients(b).length - this.visibleIngredients(a).length
-    );
     for (const c of candidates) {
       const supply = baseSupply.map(({ dish, ings }) => {
         if (dish !== c) return ings;
@@ -1303,7 +1353,7 @@ export default class PlayableController extends BaseObject {
           buyer.tooltip.hide();
           // Монетки вылетают сразу после исчезновения бабла последнего клиента.
           this.emitCoinsForSlot(buyer.slotIndex, buyer);
-          this.triggerStore();
+          if (!this._storeTriggered) this.triggerStore();
         }, 600);
         return;
       }
@@ -1351,6 +1401,59 @@ export default class PlayableController extends BaseObject {
     if (!this.prepareColaFlight(cola)) return false;
     if (cola._targetDish) cola._targetDish.complete = true;
     return true;
+  }
+
+  // Сделает ли эта попытка выдачи блюда/колы последней в игре?
+  // (Помечен бы был последний non-complete заказ, нет других активных
+  // незакрытых заказов и больше клиентов не будет.)
+  // Проверяется ДО маркировки complete и без побочных эффектов — если true,
+  // выдача отменяется, игрок сразу попадает в стор.
+  _isFinalDeliveryDish(dish) {
+    if (this._storeTriggered) return false;
+    if (this.hasMoreBuyers()) return false;
+    const dishKey = dishKeyFromIconView(dish);
+    if (!dishKey) return false;
+    const match = this.findBuyerForDishKey(dishKey);
+    if (!match) return false;
+    return this._wouldBeAllDone(match.dish);
+  }
+
+  _isFinalDeliveryCola() {
+    if (this._storeTriggered) return false;
+    if (this.hasMoreBuyers()) return false;
+    const match = this.findBuyerForCola();
+    if (!match) return false;
+    return this._wouldBeAllDone(match.dish);
+  }
+
+  // Если гипотетически пометить candidateDish как complete — все ли заказы
+  // у всех активных клиентов окажутся обслужены?
+  _wouldBeAllDone(candidateDish) {
+    const active = this.getActiveBuyers();
+    if (active.length === 0) return false;
+    return active.every((b) =>
+      b.dishes.every((d) => d.complete || d === candidateDish)
+    );
+  }
+
+  // Перевод в стор вместо реальной выдачи финального заказа. Маркирует
+  // флаг, чтобы повторные тапы и onDeliveryComplete не дублировали show.
+  // В обычном flow (web/preview) сам тап на финальное блюдо засчитываем как
+  // click-install — без него игрок видит «холостой» тап (overlay прозрачный)
+  // и должен тапать ещё раз, чтобы перейти в стор.
+  _redirectFinalToStore() {
+    if (this._storeTriggered) return;
+    this._storeTriggered = true;
+    this.triggerStore();
+    if (window.is_adwords || window.is_unity) return;
+    try {
+      window.application.sound &&
+        window.application.sound.stop &&
+        window.application.sound.stop("music");
+    } catch (e) {}
+    try {
+      window.application.clickInstall && window.application.clickInstall();
+    } catch (e) {}
   }
 
   // ---------- Конфиг сценариев ----------
@@ -1433,25 +1536,34 @@ export default class PlayableController extends BaseObject {
         ],
 
         addCola: [
-          Rewards.call("pauseTutorial"),
+          // Финальный заказ в игре: не выдаём, переводим в стор.
           Rewards.if(
-            (cola) => this.prepareColaAndMark(cola),
+            () => this._isFinalDeliveryCola(),
             Rewards.startScenario([
-              Rewards.onTarget(
-                (cola) => cola,
-                Rewards.callNonInstant("flyToTooltip")
-              ),
-              Rewards.withArgs(
-                (cola) => cola && cola._targetBuyer,
-                Rewards.call("onDeliveryComplete")
-              ),
-              Rewards.call("maybeRefillCola"),
-              () => this.updateTutorial(),
+              () => this._redirectFinalToStore(),
             ]),
             Rewards.startScenario([
-              Rewards.withArgs(
-                (cola) => cola,
-                Rewards.call("showCrossAtFood")
+              Rewards.call("pauseTutorial"),
+              Rewards.if(
+                (cola) => this.prepareColaAndMark(cola),
+                Rewards.startScenario([
+                  Rewards.onTarget(
+                    (cola) => cola,
+                    Rewards.callNonInstant("flyToTooltip")
+                  ),
+                  Rewards.withArgs(
+                    (cola) => cola && cola._targetBuyer,
+                    Rewards.call("onDeliveryComplete")
+                  ),
+                  Rewards.call("maybeRefillCola"),
+                  () => this.updateTutorial(),
+                ]),
+                Rewards.startScenario([
+                  Rewards.withArgs(
+                    (cola) => cola,
+                    Rewards.call("showCrossAtFood")
+                  ),
+                ])
               ),
             ])
           ),
@@ -1475,13 +1587,25 @@ export default class PlayableController extends BaseObject {
         ],
 
         putDish: [
-          Rewards.onTarget(
-            (dish) => dish,
-            Rewards.call("updateInteractive", "auto")
-          ),
-          Rewards.call("pauseTutorial"),
+          // Финальный заказ в игре: не выдаём, переводим в стор. Тарелка
+          // остаётся как была — игрок видит overlay, но не доставляет.
           Rewards.if(
-            (dish) => this.checkDish(dish),
+            (dish) => this._isFinalDeliveryDish(dish),
+            Rewards.startScenario([
+              Rewards.onTarget(
+                (dish) => dish,
+                Rewards.call("updateInteractive", "dynamic")
+              ),
+              () => this._redirectFinalToStore(),
+            ]),
+            Rewards.startScenario([
+              Rewards.onTarget(
+                (dish) => dish,
+                Rewards.call("updateInteractive", "auto")
+              ),
+              Rewards.call("pauseTutorial"),
+              Rewards.if(
+                (dish) => this.checkDish(dish),
             Rewards.startScenario([
               Rewards.onTarget(
                 (dish) => dish,
@@ -1551,6 +1675,8 @@ export default class PlayableController extends BaseObject {
                 () => this.updateTutorial(),
               ])
             )
+          ),
+            ])
           ),
         ],
 
