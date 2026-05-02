@@ -237,6 +237,10 @@ export default class PlayableController extends BaseObject {
     this.incomeBoosts = { meat: 0, tomato: 0, cucumbers: 0, fry: 0, cola: 0 };
     this.upgradeRoundIndex = 0;
     this.upgradeOverlayActive = false;
+    // Очередь pending-апгрейдов: если игрок успел закрыть несколько
+    // «апгрейдных» интервалов до того, как предыдущий overlay был
+    // выбран, копим их и показываем по одному после каждого закрытия.
+    this._pendingUpgrades = 0;
 
     this.currentDishes = [];
     this.completedDishesCount = 0;
@@ -248,6 +252,10 @@ export default class PlayableController extends BaseObject {
     this.totalSpawned = 0;
     this.spawningSlots = new Set();
     this._storeTriggered = false;
+
+    // Dev-хук: ссылка на контроллер из консоли (рядом с window.__rcpEditor),
+    // используется в чит-инструментах и при отладке.
+    if (typeof window !== "undefined") window.__rcpController = this;
 
     // Заказы генерируются lazy в spawnBuyerInSlot — состав DISH_TEMPLATES
     // зависит от unlockedToppings, который меняется во время раунда.
@@ -1007,13 +1015,16 @@ export default class PlayableController extends BaseObject {
 
     // Триггер апгрейда: каждые UPGRADE_INTERVAL обслуженных, кроме самого
     // последнего клиента (после 20-го уходим в стор без апгрейда).
+    // Через очередь, чтобы быстрые подряд закрытия не «съедали» апгрейды:
+    // если предыдущий overlay ещё не закрыт — новый апгрейд встаёт в pending
+    // и покажется автоматически после выбора текущего.
     setTimeout(() => {
       if (
         this.totalServed > 0 &&
         this.totalServed < TOTAL_BUYERS &&
         this.totalServed % UPGRADE_INTERVAL === 0
       ) {
-        this.showUpgradeOverlay();
+        this._enqueueUpgrade();
       }
     }, 1100);
   }
@@ -1241,13 +1252,29 @@ export default class PlayableController extends BaseObject {
 
   // ---------- Show / hide overlay ----------
 
-  showUpgradeOverlay() {
+  // Поставить апгрейд в очередь и попытаться показать сразу.
+  _enqueueUpgrade() {
+    this._pendingUpgrades++;
+    this._tryShowNextUpgrade();
+  }
+
+  // Если overlay свободен и в очереди что-то есть — показать. Если показ
+  // не удался (нет overlay-объекта или мало карточек) — апгрейд остаётся
+  // в очереди и попробуем снова на следующем hideUpgradeOverlay().
+  _tryShowNextUpgrade() {
     if (this.upgradeOverlayActive) return;
+    if (this._pendingUpgrades <= 0) return;
+    const shown = this.showUpgradeOverlay();
+    if (shown) this._pendingUpgrades--;
+  }
+
+  showUpgradeOverlay() {
+    if (this.upgradeOverlayActive) return false;
     const overlay = ObjectLinks.get(OBJECTS.upgradeOverlay);
-    if (!overlay || typeof overlay.show !== "function") return;
+    if (!overlay || typeof overlay.show !== "function") return false;
 
     const cards = this.pickUpgradeCards();
-    if (!cards || cards.length < 2) return;
+    if (!cards || cards.length < 2) return false;
 
     this.upgradeOverlayActive = true;
     this.upgradeRoundIndex++;
@@ -1260,6 +1287,7 @@ export default class PlayableController extends BaseObject {
     }
 
     overlay.show(cards);
+    return true;
   }
 
   hideUpgradeOverlay() {
@@ -1280,6 +1308,9 @@ export default class PlayableController extends BaseObject {
 
     // Восстановим tutorial (если есть открытые заказы).
     setTimeout(() => this.updateTutorial(), 600);
+
+    // Показать следующий апгрейд из очереди, если есть.
+    this._tryShowNextUpgrade();
   }
 
   _repairUnsolvableSlots() {
