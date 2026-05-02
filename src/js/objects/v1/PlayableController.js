@@ -660,17 +660,21 @@ export default class PlayableController extends BaseObject {
   }
 
   // Возвращает тарелку, на которую можно положить linkID
-  // (meat/tomato/cucumbers/fry); или null если ни одна тарелка не
-  // подходит. Greedy: сначала достраиваем самую полную тарелку.
+  // (meat/tomato/cucumbers/fry); или null если ни одна не подходит.
+  // Greedy: сначала достраиваем самую полную тарелку.
   //
-  // Мясо — база любой шавермы, кладём свободно (matching-инвариант
-  // неприменим: лепёшка+мясо валидны для каждого не-cola заказа).
+  // Мясо — база любой шавермы, кладём свободно: лепёшка+мясо валидны
+  // для каждого не-cola заказа, копить заготовки впрок разрешено.
   //
-  // Для топпингов — локальная проверка: после добавления состав тарелки
-  // должен оставаться ⊆ products какого-то открытого заказа. Это не даёт
-  // собрать «химеру» (помидор+огурец+картошка), которой нет ни в одном
-  // заказе. Глобальный matching-гейт supply↔demand сознательно НЕ
-  // используем: он создавал тупики при «лишних» заготовках лепёшка+мясо.
+  // Для топпингов используем matching-инвариант с послаблением:
+  // тарелки только с мясом ([meat]) считаются «wildcard» — они могут
+  // стать любой шавермой потом и не занимают слот в demand. Specific
+  // тарелки (с топпингами) после гипотетического добавления linkID
+  // должны раздаться по distinct открытым заказам так, чтобы каждой
+  // нашёлся заказ с products ⊇ её состав. Это:
+  //   - не даёт собрать «химеру» (нет такого заказа);
+  //   - не даёт собрать больше шаверм одного типа, чем заказано;
+  //   - всё ещё разрешает копить [meat]-заготовки впрок.
   _pickPlateForIngredient(linkID) {
     const candidates = this.currentDishes.filter(
       (d) => d.visible && (!d[linkID] || !d[linkID].visible)
@@ -685,14 +689,21 @@ export default class PlayableController extends BaseObject {
     if (linkID === OBJECTS.meat) return candidates[0];
 
     const demand = this._currentDemand();
+    const isWildcard = (ings) =>
+      ings.length === 0 ||
+      (ings.length === 1 && ings[0] === OBJECTS.meat);
+
     for (const c of candidates) {
-      const after = this.visibleIngredients(c).concat(
-        this.visibleIngredients(c).includes(linkID) ? [] : [linkID]
-      );
-      const fitsAny = demand.some((products) =>
-        after.every((p) => products.includes(p))
-      );
-      if (fitsAny) return c;
+      const specificSupply = this.currentDishes
+        .filter((d) => d.visible)
+        .map((d) => {
+          const ings = this.visibleIngredients(d);
+          if (d === c && !ings.includes(linkID)) return ings.concat(linkID);
+          return ings;
+        })
+        .filter((ings) => !isWildcard(ings));
+
+      if (this._canMatch(specificSupply, demand)) return c;
     }
     return null;
   }
