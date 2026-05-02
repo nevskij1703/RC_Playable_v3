@@ -347,9 +347,25 @@ export default class PlayableController extends BaseObject {
     if (dishCount > RCP_SETTINGS.maxDishesPerOrder) {
       dishCount = RCP_SETTINGS.maxDishesPerOrder;
     }
+    // Накопительная проверка: уникальных заблокированных продуктов суммарно
+    // во всех блюдах заказа должно остаться ≤ 1. Иначе клиент unsolvable за
+    // +1 апгрейд (например: заказ {шаверма с огурцами + кола} требует двух
+    // разблокировок — огурцы И кола).
+    const isLocked = (p) =>
+      p !== PRODUCTS_TYPES.meat && !this._productUnlocked(p);
+    const orderLocked = new Set();
     const dishes = [];
     for (let i = 0; i < dishCount; i++) {
-      const t = safePool[Math.floor(Math.random() * safePool.length)];
+      const candidates = safePool.filter((t) => {
+        const merged = new Set(orderLocked);
+        for (const p of t.products) if (isLocked(p)) merged.add(p);
+        return merged.size <= 1;
+      });
+      // Если ни один шаблон не подходит без выхода за лимит — обрезаем
+      // заказ. Лучше короткий решаемый, чем длинный unsolvable.
+      if (!candidates.length) break;
+      const t = candidates[Math.floor(Math.random() * candidates.length)];
+      for (const p of t.products) if (isLocked(p)) orderLocked.add(p);
       dishes.push({
         products: t.products.slice(),
         dishKey: dishKeyForProducts(t.products),
