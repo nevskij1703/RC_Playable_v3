@@ -694,6 +694,18 @@ export default class PlayableController extends BaseObject {
     );
   }
 
+  // Только заказы, в которых ВСЕ продукты разблокированы. Используется
+  // для гейта класть-ингредиент: иначе игрок начинает собирать шаверму
+  // под заказ с заблокированным топпингом и попадает в ловушку.
+  _currentSolvableDemand() {
+    return this._currentDemand().filter((products) =>
+      products.every((p) => {
+        if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
+        return this.unlockedToppings.has(p);
+      })
+    );
+  }
+
   // Лепёшку (новую пустую тарелку) можно положить, пока есть свободный
   // слот тарелки. База шавермы (лепёшка + мясо) общая для всех заказов —
   // её разрешено собирать впрок, независимо от текущего спроса.
@@ -730,7 +742,10 @@ export default class PlayableController extends BaseObject {
 
     if (linkID === OBJECTS.meat) return candidates[0];
 
-    const demand = this._currentDemand();
+    // Учитываем только заказы, которые игрок физически может закрыть
+    // (все топпинги разблокированы). Иначе можно начать собирать шаверму
+    // под заказ с локнутым топпингом — и зависнуть.
+    const demand = this._currentSolvableDemand();
     const isWildcard = (ings) =>
       ings.length === 0 ||
       (ings.length === 1 && ings[0] === OBJECTS.meat);
