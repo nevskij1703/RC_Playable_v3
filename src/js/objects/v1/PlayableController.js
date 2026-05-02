@@ -420,8 +420,18 @@ export default class PlayableController extends BaseObject {
     return this.totalSpawned < TOTAL_BUYERS;
   }
 
+  // Onboarding ramp: первый клиент один, потом одновременно 2,
+  // дальше — стандартные SLOT_COUNT (обычно 3). totalServed=0 → 1 слот;
+  // totalServed in [1, 2] → 2 слота; totalServed >= 3 → SLOT_COUNT.
+  _currentSlotLimit() {
+    if (this.totalServed < 1) return Math.min(1, SLOT_COUNT);
+    if (this.totalServed < 3) return Math.min(2, SLOT_COUNT);
+    return SLOT_COUNT;
+  }
+
   spawnBuyerInSlot(slotIndex, isInitial = false) {
     if (!this.hasMoreBuyers()) return;
+    if (slotIndex >= this._currentSlotLimit()) return;
     if (this.activeBuyers[slotIndex]) return;
     if (this.spawningSlots.has(slotIndex)) return;
 
@@ -620,6 +630,20 @@ export default class PlayableController extends BaseObject {
       this.spawnBuyerInSlot(slotIndex, false);
       this.updateTutorial();
     }, 800 + TIMINGS.characterMoveOut + SPAWN_DELAY_MS);
+
+    // Onboarding ramp: после release лимит мог увеличиться (1→2 или
+    // 2→3). Заспавнить дополнительные слоты, кроме своего (он уже
+    // в авто-spawn выше).
+    const limit = this._currentSlotLimit();
+    for (let i = 0; i < limit; i++) {
+      if (i === slotIndex) continue;
+      if (this.activeBuyers[i] || this.spawningSlots.has(i)) continue;
+      const stagger = (i + 1) * 220;
+      setTimeout(
+        () => this.spawnBuyerInSlot(i, false),
+        800 + TIMINGS.characterMoveOut + SPAWN_DELAY_MS + stagger
+      );
+    }
   }
 
   // ---------- Lookup утилиты ----------
@@ -1561,7 +1585,9 @@ export default class PlayableController extends BaseObject {
     this.updateTortillaInteractive();
 
     // Спавним клиентов в пустых слотах (спавны во время паузы подавлялись).
-    for (let i = 0; i < SLOT_COUNT; i++) {
+    // Учитываем onboarding-лимит: первая фаза = 1 слот, вторая = 2, далее 3.
+    const limit = this._currentSlotLimit();
+    for (let i = 0; i < limit; i++) {
       if (!this.activeBuyers[i] && this.hasMoreBuyers()) {
         // Небольшой stagger чтобы не появились все одновременно.
         setTimeout(() => this.spawnBuyerInSlot(i, false), i * 220);
