@@ -50,6 +50,12 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -310, y: -433 },
     tooltip2: { x: -81, y: -429 },
     tooltip3: { x: 159, y: -432 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -109, y: -435 },
+    italian_man_phase2: { x: -242, y: 196 },
+    old_grambler_phase2: { x: 51, y: 112 },
+    tooltip1_phase2: { x: -213, y: -427 },
+    tooltip3_phase2: { x: 65, y: -426 },
   },
   // Классический горизонтальный десктоп (16:9, 16:10, 5:3, 3:2)
   desktop: {
@@ -60,6 +66,12 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -305, y: -409 },
     tooltip2: { x: -84, y: -408 },
     tooltip3: { x: 158, y: -409 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -115, y: -433 },
+    italian_man_phase2: { x: -242, y: 196 },
+    old_grambler_phase2: { x: 51, y: 112 },
+    tooltip1_phase2: { x: -209, y: -422 },
+    tooltip3_phase2: { x: 66, y: -421 },
   },
   // Почти квадратный экран (4:3 лэндскейп) — пользователь не настраивал,
   // оставляем прежние значения как fallback.
@@ -81,6 +93,8 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -353, y: -544 },
     tooltip2: { x: -124, y: -541 },
     tooltip3: { x: 128, y: -540 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -111, y: -461 },
     italian_man_phase2: { x: -242, y: 196 },
     old_grambler_phase2: { x: 51, y: 112 },
     tooltip1_phase2: { x: -238, y: -535 },
@@ -95,6 +109,12 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -345, y: -517 },
     tooltip2: { x: -105, y: -516 },
     tooltip3: { x: 121, y: -517 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -110, y: -458 },
+    italian_man_phase2: { x: -249, y: 194 },
+    old_grambler_phase2: { x: 53, y: 101 },
+    tooltip1_phase2: { x: -241, y: -542 },
+    tooltip3_phase2: { x: 37, y: -542 },
   },
   // 9:21 — сверх-вытянутый вертикальный
   ultraTall: {
@@ -105,6 +125,12 @@ const DEFAULT_LAYOUT = {
     tooltip1: { x: -348, y: -531 },
     tooltip2: { x: -111, y: -521 },
     tooltip3: { x: 121, y: -519 },
+    pretty_woman_phase1: { x: -134, y: 122 },
+    tooltip2_phase1: { x: -113, y: -460 },
+    italian_man_phase2: { x: -249, y: 194 },
+    old_grambler_phase2: { x: 53, y: 101 },
+    tooltip1_phase2: { x: -244, y: -535 },
+    tooltip3_phase2: { x: 38, y: -528 },
   },
 };
 
