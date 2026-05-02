@@ -110,7 +110,7 @@ const CARD_ICONS = {
   tomato: "dish/tomato_4",
   cucumbers: "dish/cucumber_10",
   fry: "dish/fry_10",
-  cola: "ui/coin", // у Cola нет отдельного icon-asset, используем монету как заместитель
+  cola: "location/drink", // стакан с колой (тот же ассет, что и игровая cola)
 };
 
 const PRODUCT_LABELS = {
@@ -1431,7 +1431,7 @@ export default class PlayableController extends BaseObject {
         label: `${PRODUCT_LABELS[k] || k}`,
         sub: `+${cur} → +${cur + INCOME_STEP} монет`,
         iconKey: CARD_ICONS[k],
-        badge: `+${INCOME_STEP}`,
+        badgeIcon: "ui/coin",
         accentColor: 0x4fa8e0,
         apply: () => this.applyIncomeUpgrade(k),
       };

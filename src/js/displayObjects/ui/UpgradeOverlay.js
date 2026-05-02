@@ -249,8 +249,43 @@ export default class UpgradeOverlay extends Container {
       }
     }
 
-    // Бейдж "+1" / "+2" / "NEW" — для plate / topping / income соответственно.
-    if (card.badge) {
+    // Бейдж в правом-верхнем углу иконки. Поддерживает два формата:
+    //   card.badgeIcon — путь к sprite-иконке (для income: монета)
+    //   card.badge     — короткий текст ("+1", "NEW")
+    if (card.badgeIcon) {
+      const r = 18;
+      const bg = new PIXI.Graphics();
+      bg.beginFill(0xffffff);
+      bg.drawCircle(0, 0, r);
+      bg.endFill();
+      bg.lineStyle(2, card.accentColor || COL_STROKE, 1);
+      bg.drawCircle(0, 0, r);
+      bg.x = 32;
+      bg.y = -32;
+      wrap.addChild(bg);
+
+      try {
+        const ico = PIXI.Sprite.from(card.badgeIcon);
+        ico.anchor.set(0.5, 0.5);
+        const fit = (s, max) => {
+          if (!s.texture || !s.texture.valid) {
+            const onUpdate = () => {
+              s.texture.off && s.texture.off("update", onUpdate);
+              fit(s, max);
+            };
+            s.texture && s.texture.on && s.texture.on("update", onUpdate);
+            s.scale.set(0.3, 0.3);
+            return;
+          }
+          const k = Math.min(max / (s.texture.width || 1), max / (s.texture.height || 1));
+          s.scale.set(k, k);
+        };
+        fit(ico, r * 1.7);
+        ico.x = 32;
+        ico.y = -32;
+        wrap.addChild(ico);
+      } catch (e) {}
+    } else if (card.badge) {
       const bw = 48;
       const bh = 28;
       const badge = new PIXI.Graphics();
