@@ -129,9 +129,9 @@ export default class Location extends Container {
                     scale: {x: -.55, y: .55}
                   },
                   pivot: {x: 36, y: 0},
-                  // Расширенный пул персонажей: позиция перезаписывается при
-                  // спавне на канонику слота (см. animateCharacterIn).
-                  position: { x: 0, y: 0 },
+                  // Запасной/неиспользуемый персонаж — оставлен, спайн загружен,
+                  // но в активную ротацию (SLOT_CHARACTERS) не добавлен.
+                  position: { x: 378, y: 114 },
                 },
                 {
                   name: "old_grambler",
