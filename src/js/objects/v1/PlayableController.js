@@ -559,6 +559,7 @@ export default class PlayableController extends BaseObject {
     this.activeBuyers[slotIndex] = null;
     this.totalServed++;
     buyer.complete = true;
+    this._maybeEnqueueUpgradeForServed(this.totalServed);
 
     const character = buyer.character;
     const tooltip = buyer.tooltip;
@@ -1115,20 +1116,20 @@ export default class PlayableController extends BaseObject {
       setTimeout(() => hud.addCoins(sum), 480);
     }
 
-    // Триггер апгрейда: каждые UPGRADE_INTERVAL обслуженных, кроме самого
-    // последнего клиента (после 20-го уходим в стор без апгрейда).
-    // Через очередь, чтобы быстрые подряд закрытия не «съедали» апгрейды:
-    // если предыдущий overlay ещё не закрыт — новый апгрейд встаёт в pending
-    // и покажется автоматически после выбора текущего.
-    setTimeout(() => {
-      if (
-        this.totalServed > 0 &&
-        this.totalServed < TOTAL_BUYERS &&
-        this.totalServed % UPGRADE_INTERVAL === 0
-      ) {
-        this._enqueueUpgrade();
-      }
-    }, 1100);
+  }
+
+  // Триггер апгрейда. Вызывается из releaseSlot и onDeliveryComplete
+  // ПРЯМО ПОСЛЕ инкремента totalServed: snapshot снимается на момент
+  // release, иначе быстрый следующий клиент поднимет counter за время
+  // setTimeout-задержки и проверка `% UPGRADE_INTERVAL === 0`
+  // промахнётся, и апгрейд потеряется.
+  _maybeEnqueueUpgradeForServed(servedSnapshot) {
+    if (servedSnapshot <= 0) return;
+    if (servedSnapshot >= TOTAL_BUYERS) return;
+    if (servedSnapshot % UPGRADE_INTERVAL !== 0) return;
+    // Задержка ~1.1s — чтобы overlay апгрейда появлялся не раньше
+    // монеток, а после анимации заработка.
+    setTimeout(() => this._enqueueUpgrade(), 1100);
   }
 
   // ---------- Roguelike upgrades ----------
