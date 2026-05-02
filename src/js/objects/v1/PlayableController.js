@@ -490,6 +490,16 @@ export default class PlayableController extends BaseObject {
     this.activeBuyers[slotIndex] = buyer;
     this.totalSpawned++;
 
+    // Onboarding: применяем phase-specific позицию для character'а из
+    // сохранённого editor-layout. EditorTool пересчитывает targets
+    // под текущую фазу, так что нужная позиция уйдёт в config.position
+    // ДО animateCharacterIn.
+    if (typeof window !== "undefined" && window.__rcpEditor) {
+      try {
+        window.__rcpEditor.applyStoredLayout();
+      } catch (e) {}
+    }
+
     this.animateCharacterIn(buyer, isInitial);
 
     if (!buyer.pendingOrder) {

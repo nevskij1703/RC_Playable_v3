@@ -181,6 +181,11 @@ function migrate(stored) {
 // HudPanel НЕ редактируется через editor — она прибита к верху канваса
 // через engine'овский adaptivePosition + position/position_portrait,
 // так же как кнопки Install и Mute прибиты к нижнему краю.
+// Базовый набор target'ов (для phase 3+ — классика). Phase 1/2 используют
+// тех же character'ов, но id зашит phase-суффиксом, чтобы layout хранил
+// отдельные позиции. _collectTargetsForPhase ниже подменяет id в зависимости
+// от текущей фазы (Phase 1: pretty_woman_phase1; Phase 2: italian_man_phase2,
+// old_grambler_phase2).
 const TARGETS = [
   { id: "italian_man", child: "italian_man" },
   { id: "pretty_woman", child: "pretty_woman" },
@@ -189,6 +194,26 @@ const TARGETS = [
   { id: "tooltip2", linkID: OBJECTS.tooltip2, labelOwner: "pretty_woman" },
   { id: "tooltip3", linkID: OBJECTS.tooltip3, labelOwner: "old_grambler" },
 ];
+
+// Маппинг character → phase-specific layout key.
+const PHASE_OVERRIDES = {
+  1: { pretty_woman: "pretty_woman_phase1" },
+  2: {
+    italian_man: "italian_man_phase2",
+    old_grambler: "old_grambler_phase2",
+  },
+};
+
+function _phaseOverrideId(charName, phase) {
+  const map = PHASE_OVERRIDES[phase];
+  return (map && map[charName]) || charName;
+}
+
+function _currentRcpPhase() {
+  const c = typeof window !== "undefined" && window.__rcpController;
+  if (c && typeof c._currentPhase === "function") return c._currentPhase();
+  return 3;
+}
 
 // Точка в parent-local координатах, соответствующая align-якорю на канвасе
 // (например, верхняя центральная точка для align={0.5, 0}). Используется для
@@ -674,11 +699,20 @@ export default class EditorTool {
   collectTargets() {
     this.targets = [];
     const buyers = ObjectLinks.get(OBJECTS.buyers);
+    const phase = _currentRcpPhase();
     for (const desc of TARGETS) {
       let obj;
       if (desc.child) obj = buyers && buyers[desc.child];
       else if (desc.linkID) obj = ObjectLinks.get(desc.linkID);
-      if (obj && obj.view) this.targets.push({ desc, obj });
+      if (!obj || !obj.view) continue;
+      // Для character-таргетов подменяем id на phase-specific ключ —
+      // тогда позиции для onboarding-фаз сохранятся отдельно.
+      const phaseDesc = desc.child
+        ? Object.assign({}, desc, {
+            id: _phaseOverrideId(desc.child, phase),
+          })
+        : desc;
+      this.targets.push({ desc: phaseDesc, obj });
     }
   }
 
