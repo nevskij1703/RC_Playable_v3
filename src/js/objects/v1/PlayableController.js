@@ -644,22 +644,54 @@ export default class PlayableController extends BaseObject {
     );
   }
 
-  // Случайный клиент с открытым dish того же ключа.
+  // Клиент с открытым dish того же ключа, выбранный с приоритетом:
+  //   (1) у кого все остальные не-complete блюда — решаемы текущими
+  //       апгрейдами (нет «зависших» под locked-топпинги);
+  //   (2) среди равных — у кого меньше осталось не-complete блюд после
+  //       этой выдачи (быстрее закрыть клиента);
+  //   (3) среди равных — random.
   findBuyerForDishKey(dishKey) {
     const matches = [];
     for (const buyer of this.activeBuyers) {
-      if (!buyer || buyer.complete) continue;
+      if (!buyer || buyer.complete || buyer.pendingOrder) continue;
       const dish = buyer.dishes.find(
         (d) => !d.complete && d.dishKey === dishKey
       );
       if (dish) matches.push({ buyer, dish });
     }
     if (!matches.length) return null;
-    return matches[Math.floor(Math.random() * matches.length)];
+    return this._pickPriorityBuyer(matches);
   }
 
   findBuyerForCola() {
     return this.findBuyerForDishKey(dishKeyForProducts([OBJECTS.cola]));
+  }
+
+  // Решаемо ли блюдо при текущих unlockedToppings.
+  _dishIsSolvable(dish) {
+    if (dish.cola) return true;
+    return dish.products.every((p) => {
+      if (p === OBJECTS.cola || p === PRODUCTS_TYPES.meat) return true;
+      return this.unlockedToppings.has(p);
+    });
+  }
+
+  _pickPriorityBuyer(matches) {
+    // Приоритет (1): после этой выдачи у клиента остаются ТОЛЬКО решаемые блюда.
+    const isPriorityA = ({ buyer, dish }) =>
+      buyer.dishes.every(
+        (d) => d.complete || d === dish || this._dishIsSolvable(d)
+      );
+    const priorityA = matches.filter(isPriorityA);
+    const pool = priorityA.length > 0 ? priorityA : matches;
+
+    // Приоритет (2): меньше остаётся не-complete блюд после выдачи.
+    const remainingCount = ({ buyer, dish }) =>
+      buyer.dishes.filter((d) => !d.complete && d !== dish).length;
+    const minRemaining = Math.min(...pool.map(remainingCount));
+    const tier = pool.filter((m) => remainingCount(m) === minRemaining);
+
+    return tier[Math.floor(Math.random() * tier.length)];
   }
 
   // ---------- Smart cooking (perfect-matching gate) ----------
