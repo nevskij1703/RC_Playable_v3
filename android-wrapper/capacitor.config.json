@@ -1,0 +1,13 @@
+{
+  "appId": "com.matryoshka.rcplayable",
+  "appName": "RC Playable",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
+}
