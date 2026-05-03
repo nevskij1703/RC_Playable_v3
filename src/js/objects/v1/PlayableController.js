@@ -226,12 +226,13 @@ export default class PlayableController extends BaseObject {
     this.tutorial = new Tutorial(ObjectLinks.get(OBJECTS.tutorialFinger));
 
     // ---------- Roguelike state ----------
-    // Стартуем с 1 тарелкой; dish2/dish3 заблокированы пока игрок не
-    // купит апгрейд. Топпинги (tomato/cucumbers/fry) тоже стартуют
-    // заблокированными — игрок может готовить только meat-шаверму и колу.
+    // Стартуем с 1 тарелкой по центру (dish2). Апгрейды раскрывают
+    // dish1 (левая), затем dish3 (правая) — порядок задан в lockedDishes.
+    // Топпинги (tomato/cucumbers/fry) тоже стартуют заблокированными —
+    // игрок может готовить только meat-шаверму и колу.
     this.unlockedPlateCount = 1;
-    this.lockedDishes = [OBJECTS.dish2, OBJECTS.dish3];
-    this.emptyDishes = [OBJECTS.dish1];
+    this.lockedDishes = [OBJECTS.dish1, OBJECTS.dish3];
+    this.emptyDishes = [OBJECTS.dish2];
 
     this.unlockedToppings = new Set();
     this.unlockedCola = false;
@@ -1425,11 +1426,14 @@ export default class PlayableController extends BaseObject {
       if (!pool.length) return null;
       const k = pickRandom(pool);
       const cur = this.incomeBoosts[k] || 0;
+      const base = PRICES[k] || 0;
+      const cur$ = base + cur;
+      const next$ = base + cur + INCOME_STEP;
       return {
         type: "income",
         productKey: k,
         label: `${PRODUCT_LABELS[k] || k}`,
-        sub: `+${cur} → +${cur + INCOME_STEP} монет`,
+        sub: `${cur$} → ${next$} монет`,
         iconKey: CARD_ICONS[k],
         badgeIcon: "ui/coin",
         accentColor: 0x4fa8e0,
@@ -1864,14 +1868,6 @@ export default class PlayableController extends BaseObject {
       scenarios: {
         main: [
           Rewards.call("setupComponents"),
-
-          () => {
-            try {
-              const s = window.application && window.application.sound;
-              if (s && !s.context.muted && s.toggleMuteAll) s.toggleMuteAll();
-              if (window.application) window.application.soundMuted = true;
-            } catch (e) {}
-          },
 
           () => {
             this.spawnBuyerInSlot(0, true);
